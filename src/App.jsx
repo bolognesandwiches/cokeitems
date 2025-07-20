@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Loader2, Music, Calendar, Package, BarChart3, TrendingUp, Filter, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Music, Calendar, Package, BarChart3, TrendingUp, Filter, X, Search, DollarSign, Clock, SortAsc, SortDesc, Tag } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { imageBaseMap } from './data/imageBaseMap.js';
+import { mockCatalogData, mockPossessionData } from './data/mockData.js';
 
 const CokeStudiosCatalog = () => {
   const [catalogData, setCatalogData] = useState([]);
@@ -12,8 +13,24 @@ const CokeStudiosCatalog = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   
+  // Enhanced filtering and sorting state
+  const [selectedCategories, setSelectedCategories] = useState(['all']);
+  const [priceRange, setPriceRange] = useState({ min: '', max: '' });
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedItemFilter, setSelectedItemFilter] = useState('all');
+  
   // New state for tabs and analytics
   const [activeTab, setActiveTab] = useState('catalog');
+  
+  // Detect if running locally
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  // Add a URL parameter to force mock data: ?mock=true
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceMockData = urlParams.get('mock') === 'true';
   const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
   const [analyticsCategory, setAnalyticsCategory] = useState('all');
 
@@ -42,6 +59,53 @@ const CokeStudiosCatalog = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      
+      if (isLocalhost) {
+        if (forceMockData) {
+          console.log('🔧 Development: Using mock data');
+          const catalogItems = parseCatalogData(mockCatalogData);
+          setCatalogData(catalogItems);
+          setPossessionData(mockPossessionData);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('🔧 Development: Attempting real API calls');
+        
+        try {
+          // Try to fetch real data first
+          const catalogResponse = await fetch('/api/proxy?endpoint=/client2/Catalogue_English.txt?r=86');
+          if (catalogResponse.ok) {
+            const catalogText = await catalogResponse.text();
+            const catalogItems = parseCatalogData(catalogText);
+            const excludedCategories = ['"Coke Studios Online Catalog"', '"Walls and Floors"'];
+            const filteredCatalogItems = catalogItems.filter(item => !excludedCategories.includes(item.catName));
+            setCatalogData(filteredCatalogItems);
+            
+            const possessionResponse = await fetch('/api/proxy?endpoint=/api/possession');
+            if (possessionResponse.ok) {
+              const possessionJson = await possessionResponse.json();
+              setPossessionData(possessionJson);
+            } else {
+              console.log('⚠️ Real possession data unavailable, using mock data');
+              setPossessionData(mockPossessionData);
+            }
+          } else {
+            console.log('⚠️ Real catalog data unavailable, using mock data');
+            const catalogItems = parseCatalogData(mockCatalogData);
+            setCatalogData(catalogItems);
+            setPossessionData(mockPossessionData);
+          }
+        } catch (error) {
+          console.log('⚠️ API calls failed, falling back to mock data:', error.message);
+          const catalogItems = parseCatalogData(mockCatalogData);
+          setCatalogData(catalogItems);
+          setPossessionData(mockPossessionData);
+        }
+        
+        setLoading(false);
+        return;
+      }
       
       // Fetch catalog data
       const catalogResponse = await fetch('/api/proxy?endpoint=/client2/Catalogue_English.txt?r=86');
@@ -154,15 +218,114 @@ const CokeStudiosCatalog = () => {
     return Array.from(categories).sort();
   };
 
+  const getUniqueItemsInCategory = (category) => {
+    if (category === 'all') return [];
+    const items = catalogData.filter(item => item.catName === category);
+    return items.map(item => ({
+      id: item.prodId,
+      name: item.name?.replace(/"/g, '') || 'Unnamed Item'
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  const getItemPrice = (item) => {
+    const possessions = getItemPossessions(item.prodId);
+    if (possessions.length === 0) return 0;
+    // Return the most recent purchase price, or average if multiple
+    return possessions[0].purchasePrice || 0;
+  };
+
+  const getItemPurchaseDate = (item) => {
+    const possessions = getItemPossessions(item.prodId);
+    if (possessions.length === 0) return null;
+    // Return the most recent purchase date
+    return new Date(possessions[0].datePurchased);
+  };
+
   const filteredItems = catalogData.filter(item => {
+    // Search filter
     const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.catName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.catDesc?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesCategory = selectedCategory === 'all' || item.catName === selectedCategory;
+    // Category filter (support multiple categories)
+    const matchesCategory = selectedCategories.includes('all') || 
+                           selectedCategories.includes(item.catName);
     
-    return matchesSearch && matchesCategory;
+    // Price filter
+    const itemPrice = getItemPrice(item);
+    const matchesPrice = (!priceRange.min || itemPrice >= parseFloat(priceRange.min)) &&
+                        (!priceRange.max || itemPrice <= parseFloat(priceRange.max));
+    
+    // Date filter
+    const itemDate = getItemPurchaseDate(item);
+    const matchesDate = !itemDate || 
+                       (!dateRange.start || itemDate >= new Date(dateRange.start)) &&
+                       (!dateRange.end || itemDate <= new Date(dateRange.end));
+    
+    return matchesSearch && matchesCategory && matchesPrice && matchesDate;
   });
+
+  // Enhanced sorting
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    let aValue, bValue;
+    
+    switch (sortBy) {
+      case 'name':
+        aValue = a.name?.replace(/"/g, '') || '';
+        bValue = b.name?.replace(/"/g, '') || '';
+        break;
+      case 'category':
+        aValue = a.catName || '';
+        bValue = b.catName || '';
+        break;
+      case 'price':
+        aValue = getItemPrice(a);
+        bValue = getItemPrice(b);
+        break;
+      case 'date':
+        aValue = getItemPurchaseDate(a) || new Date(0);
+        bValue = getItemPurchaseDate(b) || new Date(0);
+        break;
+      case 'possessions':
+        aValue = getItemPossessions(a.prodId).length;
+        bValue = getItemPossessions(b.prodId).length;
+        break;
+      default:
+        aValue = a.name?.replace(/"/g, '') || '';
+        bValue = b.name?.replace(/"/g, '') || '';
+    }
+    
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortOrder === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    } else {
+      return sortOrder === 'asc' 
+        ? aValue - bValue
+        : bValue - aValue;
+    }
+  });
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedCategories(['all']);
+    setPriceRange({ min: '', max: '' });
+    setDateRange({ start: '', end: '' });
+    setSortBy('name');
+    setSortOrder('asc');
+    setShowFilters(false);
+  };
+
+  const hasActiveFilters = () => {
+    return searchTerm || 
+           !selectedCategories.includes('all') || 
+           priceRange.min || 
+           priceRange.max || 
+           dateRange.start || 
+           dateRange.end ||
+           sortBy !== 'name' ||
+           sortOrder !== 'asc';
+  };
 
   const filteredPossessionsCount = filteredItems.reduce((count, item) => {
     return count + getItemPossessions(item.prodId).length;
@@ -205,6 +368,13 @@ const CokeStudiosCatalog = () => {
       const categoryItemIds = new Set(categoryItems.map(item => item.prodId));
       filteredPossessions = filteredPossessions.filter(p => 
         categoryItemIds.has(p.catalogItemId)
+      );
+    }
+
+    // Filter by specific item
+    if (selectedItemFilter !== 'all') {
+      filteredPossessions = filteredPossessions.filter(p => 
+        p.catalogItemId === parseInt(selectedItemFilter)
       );
     }
 
@@ -348,35 +518,170 @@ const CokeStudiosCatalog = () => {
     <div className="space-y-8">
       {/* Enhanced Search and Filter */}
       <div className="fade-in">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative group">
-              <input
-                type="text"
-                placeholder="Search items, categories, descriptions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white placeholder-white/70 focus:outline-none focus:border-white/60 focus:bg-white/25 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow"
-              />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+        <div className="flex flex-col gap-4">
+          {/* Search Bar */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Search items, categories, descriptions..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white placeholder-white/70 focus:outline-none focus:border-white/60 focus:bg-white/25 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow"
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              </div>
             </div>
-          </div>
-          <div className="md:w-64">
-            <div className="relative group">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white focus:outline-none focus:border-white/60 focus:bg-white/25 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow cursor-pointer"
+            
+            {/* Sort Controls */}
+            <div className="flex gap-2">
+              <div className="relative group">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white focus:outline-none focus:border-white/60 focus:bg-white/25 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow cursor-pointer"
+                >
+                  <option value="name" className="bg-red-700 text-white">Name</option>
+                  <option value="category" className="bg-red-700 text-white">Category</option>
+                  <option value="price" className="bg-red-700 text-white">Price</option>
+                  <option value="date" className="bg-red-700 text-white">Date</option>
+                  <option value="possessions" className="bg-red-700 text-white">Possessions</option>
+                </select>
+              </div>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="px-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white hover:bg-white/25 focus:outline-none focus:border-white/60 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow"
               >
-                {getUniqueCategories().map(category => (
-                  <option key={category} value={category} className="bg-red-700 text-white">
-                    {category === 'all' ? 'All Categories' : category.replace(/"/g, '')}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                {sortOrder === 'asc' ? <SortAsc className="w-5 h-5" /> : <SortDesc className="w-5 h-5" />}
+              </button>
             </div>
+            
+            {/* Filter Toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 py-3 rounded-xl border-2 backdrop-blur-lg font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow flex items-center gap-2 ${
+                showFilters || hasActiveFilters()
+                  ? 'border-red-400 bg-red-500/30 text-white'
+                  : 'border-white/30 bg-white/20 text-white hover:bg-white/25 focus:border-white/60'
+              }`}
+            >
+              <Filter className="w-5 h-5" />
+              Filters
+              {hasActiveFilters() && (
+                <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                  {[
+                    searchTerm && 1,
+                    !selectedCategories.includes('all') && selectedCategories.length,
+                    (priceRange.min || priceRange.max) && 1,
+                    (dateRange.start || dateRange.end) && 1
+                  ].filter(Boolean).reduce((a, b) => a + b, 0)}
+                </span>
+              )}
+            </button>
           </div>
+
+          {/* Advanced Filters Panel */}
+          {showFilters && (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 animate-slide-in-down">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Category Filter */}
+                <div>
+                  <label className="block text-white font-coke font-semibold mb-2">Categories</label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {getUniqueCategories().map(category => (
+                      <label key={category} className="flex items-center gap-2 text-white/90 hover:text-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(category)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              if (category === 'all') {
+                                setSelectedCategories(['all']);
+                              } else {
+                                setSelectedCategories(prev => 
+                                  prev.filter(c => c !== 'all').concat(category)
+                                );
+                              }
+                            } else {
+                              setSelectedCategories(prev => 
+                                prev.filter(c => c !== category)
+                              );
+                            }
+                          }}
+                          className="rounded border-white/30 bg-white/20"
+                        />
+                        <span className="font-coke text-sm">{category === 'all' ? 'All Categories' : category.replace(/"/g, '')}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Price Range Filter */}
+                <div>
+                  <label className="block text-white font-coke font-semibold mb-2">Price Range (dB)</label>
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
+                      <input
+                        type="number"
+                        placeholder="Min price"
+                        value={priceRange.min}
+                        onChange={(e) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
+                        className="w-full pl-10 pr-3 py-2 rounded-lg border border-white/30 bg-white/20 text-white placeholder-white/70 focus:outline-none focus:border-white/60 font-coke text-sm"
+                      />
+                    </div>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
+                      <input
+                        type="number"
+                        placeholder="Max price"
+                        value={priceRange.max}
+                        onChange={(e) => setPriceRange(prev => ({ ...prev, max: e.target.value }))}
+                        className="w-full pl-10 pr-3 py-2 rounded-lg border border-white/30 bg-white/20 text-white placeholder-white/70 focus:outline-none focus:border-white/60 font-coke text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Date Range Filter */}
+                <div>
+                  <label className="block text-white font-coke font-semibold mb-2">Purchase Date</label>
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
+                      <input
+                        type="date"
+                        value={dateRange.start}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                        className="w-full pl-10 pr-3 py-2 rounded-lg border border-white/30 bg-white/20 text-white focus:outline-none focus:border-white/60 font-coke text-sm"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
+                      <input
+                        type="date"
+                        value={dateRange.end}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                        className="w-full pl-10 pr-3 py-2 rounded-lg border border-white/30 bg-white/20 text-white focus:outline-none focus:border-white/60 font-coke text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Clear Filters */}
+                <div className="flex items-end">
+                  <button
+                    onClick={clearAllFilters}
+                    className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-coke font-semibold transition-all duration-300 shadow-lg hover:shadow-xl"
+                  >
+                    Clear All Filters
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       
@@ -385,18 +690,24 @@ const CokeStudiosCatalog = () => {
         <div className="flex flex-wrap gap-4 text-white/90">
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-lg px-4 py-2 rounded-full border border-white/20 hover:bg-white/15 transition-all duration-300 transform hover:scale-105">
             <Package className="w-5 h-5" />
-            <span className="font-coke text-sm font-semibold">{filteredItems.length} items</span>
+            <span className="font-coke text-sm font-semibold">{sortedItems.length} items</span>
           </div>
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-lg px-4 py-2 rounded-full border border-white/20 hover:bg-white/15 transition-all duration-300 transform hover:scale-105">
             <Calendar className="w-5 h-5" />
             <span className="font-coke text-sm font-semibold">{filteredPossessionsCount} possessions</span>
           </div>
+          {hasActiveFilters() && (
+            <div className="flex items-center gap-2 bg-red-500/20 backdrop-blur-lg px-4 py-2 rounded-full border border-red-400/30 hover:bg-red-500/30 transition-all duration-300 transform hover:scale-105">
+              <Filter className="w-5 h-5 text-red-300" />
+              <span className="font-coke text-sm font-semibold text-red-200">Filters Active</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Enhanced Items List */}
       <div className="space-y-4 fade-in fade-in-delay-2">
-        {filteredItems.map((item, index) => {
+        {sortedItems.map((item, index) => {
           const possessions = getItemPossessions(item.prodId);
           const isExpanded = expandedItems.has(item.prodId);
           const imageUrl = getImageUrl(item.imageBase);
@@ -550,7 +861,7 @@ const CokeStudiosCatalog = () => {
         })}
       </div>
       
-      {filteredItems.length === 0 && (
+      {sortedItems.length === 0 && (
         <div className="text-center py-16 text-white fade-in fade-in-delay-3">
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mx-auto max-w-md border border-white/20 shadow-xl">
             <div className="pulse-glow rounded-full w-20 h-20 bg-white/10 flex items-center justify-center mx-auto mb-6">
@@ -617,7 +928,10 @@ const CokeStudiosCatalog = () => {
             <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
             <select
               value={analyticsCategory}
-              onChange={(e) => setAnalyticsCategory(e.target.value)}
+              onChange={(e) => {
+                setAnalyticsCategory(e.target.value);
+                setSelectedItemFilter('all'); // Reset item filter when category changes
+              }}
               className="w-full md:w-60 pl-10 pr-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-sm text-white focus:outline-none focus:border-white/60 font-coke shadow-lg transition-all duration-200 hover:bg-white/25"
             >
               {getUniqueCategories().map(category => (
@@ -627,6 +941,23 @@ const CokeStudiosCatalog = () => {
               ))}
             </select>
           </div>
+          {analyticsCategory !== 'all' && (
+            <div className="relative">
+              <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
+              <select
+                value={selectedItemFilter}
+                onChange={(e) => setSelectedItemFilter(e.target.value)}
+                className="w-full md:w-60 pl-10 pr-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-sm text-white focus:outline-none focus:border-white/60 font-coke shadow-lg transition-all duration-200 hover:bg-white/25"
+              >
+                <option value="all" className="bg-red-700 text-white">All Items</option>
+                {getUniqueItemsInCategory(analyticsCategory).map(item => (
+                  <option key={item.id} value={item.id} className="bg-red-700 text-white">
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Enhanced Summary Cards */}
