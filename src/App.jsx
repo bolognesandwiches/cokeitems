@@ -34,27 +34,25 @@ const CokeStudiosCatalog = () => {
   const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
   const [analyticsCategory, setAnalyticsCategory] = useState('all');
 
-  // State for scroll detection and header minimization
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  // Header is now always sticky - no scroll detection needed
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Scroll detection effect
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      // Header minimizes when scrolled down more than 100px
-      setIsScrolled(currentScrollY > 100);
-      setLastScrollY(currentScrollY);
-    };
+  // Scroll detection effect - removed since we want sticky header by default
+  // useEffect(() => {
+  //   const handleScroll = () => {
+  //     const currentScrollY = window.scrollY;
+  //     
+  //     // Header minimizes when scrolled down more than 100px
+  //     setIsScrolled(currentScrollY > 100);
+  //     setLastScrollY(currentScrollY);
+  //   };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  //   window.addEventListener('scroll', handleScroll, { passive: true });
+  //   return () => window.removeEventListener('scroll', handleScroll);
+  // }, [lastScrollY]);
 
   const fetchData = async () => {
     try {
@@ -515,12 +513,12 @@ const CokeStudiosCatalog = () => {
 
 
   const renderCatalogTab = () => (
-    <div className="space-y-8">
-      {/* Enhanced Search and Filter */}
-      <div className="fade-in">
-        <div className="flex flex-col gap-4">
-          {/* Search Bar */}
-          <div className="flex flex-col md:flex-row gap-4">
+    <div className="space-y-4">
+                {/* Enhanced Search and Filter */}
+          <div className="fade-in">
+            <div className="flex flex-col gap-3">
+              {/* Search Bar */}
+              <div className="flex flex-col md:flex-row gap-3">
             <div className="flex-1">
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-5 h-5" />
@@ -536,7 +534,7 @@ const CokeStudiosCatalog = () => {
             </div>
             
             {/* Sort Controls */}
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <div className="relative group">
                 <select
                   value={sortBy}
@@ -584,12 +582,12 @@ const CokeStudiosCatalog = () => {
 
           {/* Advanced Filters Panel */}
           {showFilters && (
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 animate-slide-in-down">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20 animate-slide-in-down">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Category Filter */}
                 <div>
-                  <label className="block text-white font-coke font-semibold mb-2">Categories</label>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                  <label className="block text-white font-coke font-semibold mb-1">Categories</label>
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
                     {getUniqueCategories().map(category => (
                       <label key={category} className="flex items-center gap-2 text-white/90 hover:text-white cursor-pointer">
                         <input
@@ -620,8 +618,8 @@ const CokeStudiosCatalog = () => {
 
                 {/* Price Range Filter */}
                 <div>
-                  <label className="block text-white font-coke font-semibold mb-2">Price Range (dB)</label>
-                  <div className="space-y-2">
+                  <label className="block text-white font-coke font-semibold mb-1">Price Range (dB)</label>
+                  <div className="space-y-1">
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
                       <input
@@ -647,8 +645,8 @@ const CokeStudiosCatalog = () => {
 
                 {/* Date Range Filter */}
                 <div>
-                  <label className="block text-white font-coke font-semibold mb-2">Purchase Date</label>
-                  <div className="space-y-2">
+                  <label className="block text-white font-coke font-semibold mb-1">Purchase Date</label>
+                  <div className="space-y-1">
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
                       <input
@@ -687,7 +685,7 @@ const CokeStudiosCatalog = () => {
       
       {/* Enhanced Stats */}
       <div className="fade-in fade-in-delay-1">
-        <div className="flex flex-wrap gap-4 text-white/90">
+        <div className="flex flex-wrap gap-2 text-white/90">
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-lg px-4 py-2 rounded-full border border-white/20 hover:bg-white/15 transition-all duration-300 transform hover:scale-105">
             <Package className="w-5 h-5" />
             <span className="font-coke text-sm font-semibold">{sortedItems.length} items</span>
@@ -706,7 +704,7 @@ const CokeStudiosCatalog = () => {
       </div>
 
       {/* Enhanced Items List */}
-      <div className="space-y-4 fade-in fade-in-delay-2">
+      <div className="space-y-2 fade-in fade-in-delay-2">
         {sortedItems.map((item, index) => {
           const possessions = getItemPossessions(item.prodId);
           const isExpanded = expandedItems.has(item.prodId);
@@ -719,7 +717,7 @@ const CokeStudiosCatalog = () => {
               style={{ animationDelay: `${index * 0.05}s` }}
             >
               <div 
-                className="p-5 cursor-pointer hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100/50 transition-all duration-300 relative overflow-hidden"
+                className="p-4 cursor-pointer hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100/50 transition-all duration-300 relative overflow-hidden"
                 onClick={() => toggleExpanded(item.prodId)}
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -738,7 +736,7 @@ const CokeStudiosCatalog = () => {
                         />
                       )}
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
+                        <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-lg font-bold text-red-700 font-coke transition-colors duration-300 group-hover:text-red-800">
                             {item.name || 'Unnamed Item'}
                           </h3>
@@ -751,7 +749,7 @@ const CokeStudiosCatalog = () => {
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mt-2">
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600 mt-1">
                           <span className="font-coke">
                             <strong>Category:</strong> {item.catName || 'Unknown'}
                           </span>
@@ -781,10 +779,10 @@ const CokeStudiosCatalog = () => {
 
               {isExpanded && (
                 <div className="border-t border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100/50 animate-slide-in-left">
-                  <div className="p-6 space-y-4">
+                  <div className="p-4 space-y-3">
                     {possessions.length > 0 && (
                       <div className="fade-in">
-                        <div className="flex items-center gap-3 mb-4">
+                        <div className="flex items-center gap-2 mb-3">
                           <div className="bg-red-100 p-2 rounded-lg">
                             <Calendar className="w-5 h-5 text-red-700" />
                           </div>
@@ -843,8 +841,8 @@ const CokeStudiosCatalog = () => {
                     )}
                     
                     {possessions.length === 0 && (
-                      <div className="text-center py-12 fade-in">
-                        <div className="bg-white rounded-2xl p-8 border-2 border-dashed border-gray-300 max-w-md mx-auto">
+                      <div className="text-center py-8 fade-in">
+                        <div className="bg-white rounded-2xl p-6 border-2 border-dashed border-gray-300 max-w-md mx-auto">
                           <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                             <Package className="w-8 h-8 text-gray-400" />
                           </div>
@@ -862,8 +860,8 @@ const CokeStudiosCatalog = () => {
       </div>
       
       {sortedItems.length === 0 && (
-        <div className="text-center py-16 text-white fade-in fade-in-delay-3">
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mx-auto max-w-md border border-white/20 shadow-xl">
+        <div className="text-center py-12 text-white fade-in fade-in-delay-3">
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mx-auto max-w-md border border-white/20 shadow-xl">
             <div className="pulse-glow rounded-full w-20 h-20 bg-white/10 flex items-center justify-center mx-auto mb-6">
               <Package className="w-10 h-10 opacity-70" />
             </div>
@@ -907,9 +905,9 @@ const CokeStudiosCatalog = () => {
     ];
 
     return (
-      <div className="space-y-8">
+      <div className="space-y-4">
         {/* Analytics Filters */}
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col md:flex-row gap-3">
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
             <select
@@ -961,8 +959,8 @@ const CokeStudiosCatalog = () => {
         </div>
 
         {/* Enhanced Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 font-coke mb-2">Total Purchases</p>
@@ -975,7 +973,7 @@ const CokeStudiosCatalog = () => {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
+          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 font-coke mb-2">Total Spent</p>
@@ -989,7 +987,7 @@ const CokeStudiosCatalog = () => {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
+          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 font-coke mb-2">
@@ -1007,10 +1005,10 @@ const CokeStudiosCatalog = () => {
         </div>
 
                  {/* Beautiful Charts Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Combined Purchases & Spending Over Time */}
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 xl:col-span-2">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 xl:col-span-2">
+            <div className="flex items-center gap-2 mb-4">
               <div className="bg-gradient-to-br from-purple-100 to-purple-200 p-3 rounded-xl">
                 <TrendingUp className="w-6 h-6 text-purple-700" />
               </div>
@@ -1099,8 +1097,8 @@ const CokeStudiosCatalog = () => {
           </div>
 
           {/* Enhanced Distribution - Changes based on filter */}
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 xl:col-span-2">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 xl:col-span-2">
+            <div className="flex items-center gap-2 mb-4">
               <div className="bg-gradient-to-br from-orange-100 to-orange-200 p-3 rounded-xl">
                 <BarChart3 className="w-6 h-6 text-orange-700" />
               </div>
@@ -1165,33 +1163,17 @@ const CokeStudiosCatalog = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-800">
-      {/* Enhanced Responsive Header with Coca-Cola Wave Effect */}
-      <div className={`sticky top-0 z-50 transition-all duration-500 ease-in-out transform ${
-        isScrolled 
-          ? 'bg-white shadow-2xl backdrop-blur-xl coke-wave' 
-          : 'bg-white/10 backdrop-blur-lg border-b border-white/20'
-      }`}>
-        <div className="container mx-auto px-6 transition-all duration-500 ease-in-out">
-          <div className={`flex items-center justify-between transition-all duration-500 ease-in-out ${
-            isScrolled ? 'py-3' : 'py-4'
-          }`}>
+            {/* Enhanced Responsive Header with Coca-Cola Wave Effect - Always Sticky */}
+      <div className="sticky top-0 z-50 bg-white shadow-2xl backdrop-blur-xl coke-wave">
+        <div className="container mx-auto px-6">
+          <div className="flex items-center justify-between py-3">
             {/* Logo and Title */}
-            <div className={`flex items-center gap-3 transition-all duration-500 ease-in-out ${
-              isScrolled ? 'transform scale-90' : ''
-            }`}>
-              <div className={`transition-all duration-500 ease-in-out ${
-                isScrolled ? 'bg-red-600 p-2 rounded-full shadow-lg' : ''
-              }`}>
-                <Music className={`transition-all duration-500 ease-in-out ${
-                  isScrolled ? 'w-6 h-6 text-white' : 'w-8 h-8 text-white'
-                }`} />
+            <div className="flex items-center gap-3 transform scale-90">
+              <div className="bg-red-600 p-2 rounded-full shadow-lg">
+                <Music className="w-6 h-6 text-white" />
               </div>
-              <h1 className={`font-bold font-coke transition-all duration-500 ease-in-out ${
-                isScrolled 
-                  ? 'text-xl text-red-700 hidden sm:block' 
-                  : 'text-3xl text-white'
-              }`}>
-                {isScrolled ? 'Decibel.fun' : 'Decibel.fun Purchase data'}
+              <h1 className="font-bold font-coke text-xl text-red-700 hidden sm:block">
+                Decibel.fun
               </h1>
             </div>
             
@@ -1199,40 +1181,24 @@ const CokeStudiosCatalog = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setActiveTab('catalog')}
-                className={`font-semibold font-coke transition-all duration-300 shadow-lg backdrop-blur-sm transform hover:scale-105 active:scale-95 ${
-                  isScrolled
-                    ? `px-4 py-2 rounded-lg text-sm ${
-                        activeTab === 'catalog'
-                          ? 'bg-red-600 text-white shadow-xl border-2 border-red-500'
-                          : 'bg-white/80 text-red-700 border-2 border-red-200 hover:bg-red-50 hover:border-red-300'
-                      }`
-                    : `px-6 py-3 rounded-xl ${
-                        activeTab === 'catalog'
-                          ? 'bg-white/25 text-white border-2 border-white/50 shadow-xl transform scale-105'
-                          : 'bg-white/15 text-white/90 border-2 border-white/25 hover:bg-white/20 hover:border-white/40 hover:shadow-xl hover:scale-[1.02]'
-                      }`
+                className={`font-semibold font-coke transition-all duration-300 shadow-lg backdrop-blur-sm transform hover:scale-105 active:scale-95 px-4 py-2 rounded-lg text-sm ${
+                  activeTab === 'catalog'
+                    ? 'bg-red-600 text-white shadow-xl border-2 border-red-500'
+                    : 'bg-white/80 text-red-700 border-2 border-red-200 hover:bg-red-50 hover:border-red-300'
                 }`}
               >
-                <Package className={`inline ${isScrolled ? 'w-4 h-4 mr-1' : 'w-5 h-5 mr-2'}`} />
+                <Package className="inline w-4 h-4 mr-1" />
                 Catalog
               </button>
               <button
                 onClick={() => setActiveTab('analytics')}
-                className={`font-semibold font-coke transition-all duration-300 shadow-lg backdrop-blur-sm transform hover:scale-105 active:scale-95 ${
-                  isScrolled
-                    ? `px-4 py-2 rounded-lg text-sm ${
-                        activeTab === 'analytics'
-                          ? 'bg-red-600 text-white shadow-xl border-2 border-red-500'
-                          : 'bg-white/80 text-red-700 border-2 border-red-200 hover:bg-red-50 hover:border-red-300'
-                      }`
-                    : `px-6 py-3 rounded-xl ${
-                        activeTab === 'analytics'
-                          ? 'bg-white/25 text-white border-2 border-white/50 shadow-xl transform scale-105'
-                          : 'bg-white/15 text-white/90 border-2 border-white/25 hover:bg-white/20 hover:border-white/40 hover:shadow-xl hover:scale-[1.02]'
-                      }`
+                className={`font-semibold font-coke transition-all duration-300 shadow-lg backdrop-blur-sm transform hover:scale-105 active:scale-95 px-4 py-2 rounded-lg text-sm ${
+                  activeTab === 'analytics'
+                    ? 'bg-red-600 text-white shadow-xl border-2 border-red-500'
+                    : 'bg-white/80 text-red-700 border-2 border-red-200 hover:bg-red-50 hover:border-red-300'
                 }`}
               >
-                <BarChart3 className={`inline ${isScrolled ? 'w-4 h-4 mr-1' : 'w-5 h-5 mr-2'}`} />
+                <BarChart3 className="inline w-4 h-4 mr-1" />
                 Analytics
               </button>
             </div>
@@ -1241,7 +1207,7 @@ const CokeStudiosCatalog = () => {
       </div>
 
       {/* Content */}
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 py-4">
         <div className="fade-in">
           {activeTab === 'catalog' ? renderCatalogTab() : renderAnalyticsTab()}
         </div>
