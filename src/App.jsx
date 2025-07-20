@@ -44,7 +44,7 @@ const CokeStudiosCatalog = () => {
       setLoading(true);
       
       // Fetch catalog data
-      const catalogResponse = await fetch('/client2/Catalogue_English.txt?r=86');
+      const catalogResponse = await fetch('https://decibel.fun/client2/Catalogue_English.txt?r=86');
       const catalogText = await catalogResponse.text();
       
       // Parse catalog data
@@ -54,7 +54,7 @@ const CokeStudiosCatalog = () => {
       setCatalogData(filteredCatalogItems);
       
       // Fetch possession data
-      const possessionResponse = await fetch('/api/possession');
+      const possessionResponse = await fetch('https://decibel.fun/api/possession');
       const possessionJson = await possessionResponse.json();
       setPossessionData(possessionJson);
       
