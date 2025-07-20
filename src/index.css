@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  @font-face {
+    font-family: 'CokeStudios';
+    src: url('/fonts/CokeStudioschat.ttf') format('truetype');
+    font-weight: normal;
+  }
+  @font-face {
+    font-family: 'CokeStudios';
+    src: url('/fonts/CokeStudioschatb.ttf') format('truetype');
+    font-weight: bold;
+  }
+
+  /* Smooth scrolling for the entire page */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, #dc2626, #ef4444);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, #b91c1c, #dc2626);
+  }
+}
+
+@layer components {
+  /* Enhanced button animations */
+  .btn-animate {
+    @apply transform transition-all duration-300 ease-out;
+  }
+  
+  .btn-animate:hover {
+    @apply scale-105 shadow-xl;
+  }
+  
+  .btn-animate:active {
+    @apply scale-95;
+  }
+
+  /* Card hover effects */
+  .card-hover {
+    @apply transform transition-all duration-300 ease-out;
+  }
+  
+  .card-hover:hover {
+    @apply scale-[1.02] shadow-2xl -translate-y-1;
+  }
+
+  /* Fade-in animation for content */
+  .fade-in {
+    animation: fadeInUp 0.6s ease-out forwards;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  .fade-in-delay-1 {
+    animation-delay: 0.1s;
+  }
+
+  .fade-in-delay-2 {
+    animation-delay: 0.2s;
+  }
+
+  .fade-in-delay-3 {
+    animation-delay: 0.3s;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    background-color: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(209, 213, 219, 0.3);
+  }
+
+  .glass-dark {
+    backdrop-filter: blur(16px) saturate(180%);
+    background-color: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  /* Pulse animation for loading states */
+  .pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  /* Enhanced focus states */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-4 focus:ring-red-500/50 focus:ring-offset-2 focus:ring-offset-white;
+  }
+
+  /* New Coca-Cola Ribbon Wave Effect */
+  .coke-wave {
+    position: relative;
+    overflow: hidden; /* To contain the animated wave */
+  }
+
+  /* This pseudo-element creates the entire wave effect */
+  .coke-wave::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0; /* Position wave at the top of the header */
+    transform: rotate(180deg); /* Flip the wave vertically */
+    height: 65px; /* Wave height */
+    background-size: 500px 100%; /* Width of one repeating SVG pattern */
+    /* An SVG data URI creates the wave shape and ribbon. It's performant and self-contained. */
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15 L500,0 L0,0 Z' stroke-width='0' fill='%23dc2626'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15' stroke='%23dc2626' stroke-width='4' fill='none'/%3e%3c/svg%3e");
+    animation: wave-animation 5s linear infinite;
+    z-index: 15;
+    opacity: 1;
+    pointer-events: none; /* Allow clicks to pass through the wave animation */
+  }
+  
+  /* Remove the old pseudo-elements to avoid conflicts */
+  .coke-wave::before,
+  .coke-wave-top::before {
+    content: none;
+  }
+}
+
+@layer utilities {
+  /* Custom animation keyframes */
+  @keyframes fadeInUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 40px rgba(239, 68, 68, 0.8);
+    }
+  }
+
+  @keyframes slideInFromRight {
+    0% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInFromLeft {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* New, performant wave animation using background-position */
+  @keyframes wave-animation {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: -500px 0; /* Animate one full wave pattern width to the left */
+    }
+  }
+
+  /* Animation utilities */
+  .animate-slide-in-right {
+    animation: slideInFromRight 0.5s ease-out forwards;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInFromLeft 0.5s ease-out;
+  }
+
+  /* Enhanced shadow utilities */
+  .shadow-glow {
+    box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.4);
+  }
+
+  .shadow-glow-lg {
+    box-shadow: 0 20px 60px -10px rgba(239, 68, 68, 0.6);
+  }
+
+  /* Backdrop blur utilities */
+  .backdrop-blur-strong {
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+} 
