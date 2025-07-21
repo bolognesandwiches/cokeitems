@@ -24,6 +24,11 @@ const CokeStudiosCatalog = () => {
   
   // New state for tabs and analytics
   const [activeTab, setActiveTab] = useState('catalog');
+
+  // Trades state
+  const [trades, setTrades] = useState([]);
+  const [tradesLoading, setTradesLoading] = useState(true);
+  const [tradesError, setTradesError] = useState(null);
   
   // Detect if running locally
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -38,6 +43,7 @@ const CokeStudiosCatalog = () => {
 
   useEffect(() => {
     fetchData();
+    fetchTrades();
   }, []);
 
   // Scroll detection effect - removed since we want sticky header by default
@@ -125,6 +131,23 @@ const CokeStudiosCatalog = () => {
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch trades from API
+  const fetchTrades = async () => {
+    try {
+      setTradesLoading(true);
+      setTradesError(null);
+      const response = await fetch('/api/proxy?endpoint=https://decibel.fun/api/trading');
+      if (!response.ok) throw new Error('Failed to fetch trades');
+      const data = await response.json();
+      setTrades(data);
+    } catch (err) {
+      setTradesError('Failed to fetch trades');
+      setTrades([]);
+    } finally {
+      setTradesLoading(false);
     }
   };
 
@@ -463,6 +486,99 @@ const CokeStudiosCatalog = () => {
     }, 0);
   };
 
+  // Helper to get item details from possessionId
+  const getItemDetailsByPossessionId = (possessionId) => {
+    const possession = possessionData.find(p => p.id === possessionId);
+    if (!possession) return null;
+    const item = catalogData.find(i => i.prodId === possession.catalogItemId);
+    return item ? { ...item, possession } : null;
+  };
+
+  // Helper to check if all item ids in a trade are valid possessions
+  const isTradeValid = (trade) => {
+    const allIds = [...(trade.traderItemIds || []), ...(trade.tradeeItemIds || [])];
+    return allIds.every(pid => possessionData.some(p => p.id === pid));
+  };
+
+  // Trades tab filter/search state
+  const [tradesSearchTerm, setTradesSearchTerm] = useState('');
+  const [tradesSelectedCategories, setTradesSelectedCategories] = useState(['all']);
+  const [tradesSortBy, setTradesSortBy] = useState('date');
+  const [tradesSortOrder, setTradesSortOrder] = useState('desc');
+  const [tradesShowFilters, setTradesShowFilters] = useState(false);
+
+  // Helper to get all items in a trade (resolved)
+  const getTradeItems = (trade) => {
+    const traderItems = (trade.traderItemIds || []).map(getItemDetailsByPossessionId).filter(Boolean);
+    const tradeeItems = (trade.tradeeItemIds || []).map(getItemDetailsByPossessionId).filter(Boolean);
+    return [...traderItems, ...tradeeItems];
+  };
+
+  // Helper to get all unique categories from all trade items
+  const getUniqueTradeCategories = () => {
+    const categories = new Set(['all']);
+    trades.forEach(trade => {
+      getTradeItems(trade).forEach(item => {
+        if (item.catName) categories.add(item.catName);
+      });
+    });
+    return Array.from(categories).sort();
+  };
+
+  // Helper to check if a trade matches the current filter/search
+  const doesTradeMatchFilters = (trade) => {
+    const items = getTradeItems(trade);
+    // Search filter
+    const matchesSearch = tradesSearchTerm.trim() === '' || items.some(item =>
+      (item.name?.toLowerCase().includes(tradesSearchTerm.toLowerCase()) ||
+       item.catName?.toLowerCase().includes(tradesSearchTerm.toLowerCase()) ||
+       item.catDesc?.toLowerCase().includes(tradesSearchTerm.toLowerCase()))
+    );
+    // Category filter
+    const matchesCategory = tradesSelectedCategories.includes('all') ||
+      items.some(item => tradesSelectedCategories.includes(item.catName));
+    return matchesSearch && matchesCategory;
+  };
+
+  // Helper to sort trades
+  const sortTrades = (a, b) => {
+    let aValue, bValue;
+    switch (tradesSortBy) {
+      case 'date':
+        aValue = new Date(a.tradeDate);
+        bValue = new Date(b.tradeDate);
+        break;
+      case 'items':
+        aValue = getTradeItems(a).length;
+        bValue = getTradeItems(b).length;
+        break;
+      case 'id':
+        aValue = a.tradeId;
+        bValue = b.tradeId;
+        break;
+      default:
+        aValue = new Date(a.tradeDate);
+        bValue = new Date(b.tradeDate);
+    }
+    return tradesSortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+  };
+
+  // Helper to clear all trades filters
+  const clearAllTradesFilters = () => {
+    setTradesSearchTerm('');
+    setTradesSelectedCategories(['all']);
+    setTradesSortBy('date');
+    setTradesSortOrder('desc');
+    setTradesShowFilters(false);
+  };
+
+  // Helper to check if any trades filters are active
+  const hasActiveTradesFilters = () => {
+    return tradesSearchTerm ||
+      !tradesSelectedCategories.includes('all') ||
+      tradesSortBy !== 'date' ||
+      tradesSortOrder !== 'desc';
+  };
 
 
   if (loading) {
@@ -1161,6 +1277,217 @@ const CokeStudiosCatalog = () => {
     );
   };
 
+  // Trades Tab Renderer
+  const renderTradesTab = () => {
+    // Filter out trades with any unknown items
+    const validTrades = trades.filter(isTradeValid);
+
+    // Apply search/filter
+    const filteredTrades = validTrades.filter(doesTradeMatchFilters);
+    // Sort
+    const sortedTrades = [...filteredTrades].sort(sortTrades);
+
+    return (
+      <div className="space-y-4 fade-in">
+        {/* Trades Search and Filter UI */}
+        <div className="fade-in">
+          <div className="flex flex-col gap-3">
+            {/* Search Bar */}
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="flex-1">
+                <div className="relative group">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search items, categories, descriptions..."
+                    value={tradesSearchTerm}
+                    onChange={(e) => setTradesSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white placeholder-white/70 focus:outline-none focus:border-white/60 focus:bg-white/25 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow"
+                  />
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                </div>
+              </div>
+              {/* Sort Controls */}
+              <div className="flex gap-1">
+                <div className="relative group">
+                  <select
+                    value={tradesSortBy}
+                    onChange={(e) => setTradesSortBy(e.target.value)}
+                    className="px-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white focus:outline-none focus:border-white/60 focus:bg-white/25 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow cursor-pointer"
+                  >
+                    <option value="date" className="bg-red-700 text-white">Date</option>
+                    <option value="id" className="bg-red-700 text-white">Trade ID</option>
+                    <option value="items" className="bg-red-700 text-white"># Items</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => setTradesSortOrder(tradesSortOrder === 'asc' ? 'desc' : 'asc')}
+                  className="px-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-lg text-white hover:bg-white/25 focus:outline-none focus:border-white/60 font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow"
+                >
+                  {tradesSortOrder === 'asc' ? <SortAsc className="w-5 h-5" /> : <SortDesc className="w-5 h-5" />}
+                </button>
+              </div>
+              {/* Filter Toggle */}
+              <button
+                onClick={() => setTradesShowFilters(!tradesShowFilters)}
+                className={`px-4 py-3 rounded-xl border-2 backdrop-blur-lg font-coke transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-glow flex items-center gap-2 ${
+                  tradesShowFilters || hasActiveTradesFilters()
+                    ? 'border-red-400 bg-red-500/30 text-white'
+                    : 'border-white/30 bg-white/20 text-white hover:bg-white/25 focus:border-white/60'
+                }`}
+              >
+                <Filter className="w-5 h-5" />
+                Filters
+                {hasActiveTradesFilters() && (
+                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                    {[
+                      tradesSearchTerm && 1,
+                      !tradesSelectedCategories.includes('all') && tradesSelectedCategories.length
+                    ].filter(Boolean).reduce((a, b) => a + b, 0)}
+                  </span>
+                )}
+              </button>
+            </div>
+            {/* Advanced Filters Panel */}
+            {tradesShowFilters && (
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20 animate-slide-in-down">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Category Filter */}
+                  <div>
+                    <label className="block text-white font-coke font-semibold mb-1">Categories</label>
+                    <div className="space-y-1 max-h-28 overflow-y-auto">
+                      {getUniqueTradeCategories().map(category => (
+                        <label key={category} className="flex items-center gap-2 text-white/90 hover:text-white cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={tradesSelectedCategories.includes(category)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                if (category === 'all') {
+                                  setTradesSelectedCategories(['all']);
+                                } else {
+                                  setTradesSelectedCategories(prev =>
+                                    prev.filter(c => c !== 'all').concat(category)
+                                  );
+                                }
+                              } else {
+                                setTradesSelectedCategories(prev =>
+                                  prev.filter(c => c !== category)
+                                );
+                              }
+                            }}
+                            className="rounded border-white/30 bg-white/20"
+                          />
+                          <span className="font-coke text-sm">{category === 'all' ? 'All Categories' : category.replace(/"/g, '')}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Clear Filters Button */}
+                  <div className="flex items-end">
+                    <button
+                      onClick={clearAllTradesFilters}
+                      className="px-4 py-2 rounded-xl border-2 border-white/30 bg-white/20 text-white font-coke hover:bg-white/25 transition-all duration-300 shadow-lg"
+                    >
+                      Clear All Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Enhanced Stats */}
+          <div className="fade-in fade-in-delay-1">
+            <div className="flex flex-wrap gap-2 text-white/90">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-lg px-4 py-2 rounded-full border border-white/20 hover:bg-white/15 transition-all duration-300 transform hover:scale-105">
+                <Package className="w-5 h-5" />
+                <span className="font-coke text-sm font-semibold">{sortedTrades.length} trades</span>
+              </div>
+              {hasActiveTradesFilters() && (
+                <div className="flex items-center gap-2 bg-red-500/20 backdrop-blur-lg px-4 py-2 rounded-full border border-red-400/30 hover:bg-red-500/30 transition-all duration-300 transform hover:scale-105">
+                  <Filter className="w-5 h-5 text-red-300" />
+                  <span className="font-coke text-sm font-semibold text-red-200">Filters Active</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Trades List or No Results */}
+        {tradesLoading ? (
+          <div className="min-h-[300px] flex items-center justify-center">
+            <Loader2 className="w-10 h-10 animate-spin text-red-600" />
+          </div>
+        ) : tradesError ? (
+          <div className="min-h-[300px] flex items-center justify-center text-red-200">
+            <X className="w-8 h-8 mr-2" />
+            {tradesError}
+          </div>
+        ) : !sortedTrades || sortedTrades.length === 0 ? (
+          <div className="min-h-[300px] flex flex-col items-center justify-center text-white/80 fade-in">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mx-auto max-w-md border border-white/20 shadow-xl mb-4">
+              <Package className="w-10 h-10 opacity-70 mx-auto mb-2" />
+              <h3 className="text-xl font-bold font-coke mb-2 text-center">No trades found</h3>
+              <p className="font-coke text-sm text-center">No trades are available for the selected items.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {sortedTrades.map(trade => (
+              <div key={trade.tradeId} className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-coke font-bold text-lg text-red-700">Trade #{trade.tradeId}</span>
+                    <span className="text-gray-500 font-coke text-sm">{new Date(trade.tradeDate).toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="font-coke text-sm text-gray-600 mb-1">Trader gave:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {trade.traderItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
+                      {trade.traderItemIds.map(pid => {
+                        const item = getItemDetailsByPossessionId(pid);
+                        return item ? (
+                          <div key={pid} className="flex items-center gap-2 bg-white/40 rounded-lg px-3 py-1 shadow border border-white/30">
+                            {item.imageBase && (
+                              <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-8 h-8 object-contain" />
+                            )}
+                            <span className="font-coke text-sm">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
+                          </div>
+                        ) : (
+                          <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-coke text-sm text-gray-600 mb-1">Tradee gave:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {trade.tradeeItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
+                      {trade.tradeeItemIds.map(pid => {
+                        const item = getItemDetailsByPossessionId(pid);
+                        return item ? (
+                          <div key={pid} className="flex items-center gap-2 bg-white/40 rounded-lg px-3 py-1 shadow border border-white/30">
+                            {item.imageBase && (
+                              <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-8 h-8 object-contain" />
+                            )}
+                            <span className="font-coke text-sm">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
+                          </div>
+                        ) : (
+                          <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-800">
             {/* Enhanced Responsive Header with Coca-Cola Wave Effect - Always Sticky */}
@@ -1201,6 +1528,17 @@ const CokeStudiosCatalog = () => {
                 <BarChart3 className="inline w-4 h-4 mr-1" />
                 Analytics
               </button>
+              <button
+                onClick={() => setActiveTab('trades')}
+                className={`font-semibold font-coke transition-all duration-300 shadow-lg backdrop-blur-sm transform hover:scale-105 active:scale-95 px-4 py-2 rounded-lg text-sm ${
+                  activeTab === 'trades'
+                    ? 'bg-red-600 text-white shadow-xl border-2 border-red-500'
+                    : 'bg-white/80 text-red-700 border-2 border-red-200 hover:bg-red-50 hover:border-red-300'
+                }`}
+              >
+                <DollarSign className="inline w-4 h-4 mr-1" />
+                Trades
+              </button>
             </div>
           </div>
         </div>
@@ -1209,7 +1547,7 @@ const CokeStudiosCatalog = () => {
       {/* Content */}
       <div className="container mx-auto px-4 py-4">
         <div className="fade-in">
-          {activeTab === 'catalog' ? renderCatalogTab() : renderAnalyticsTab()}
+          {activeTab === 'catalog' ? renderCatalogTab() : activeTab === 'analytics' ? renderAnalyticsTab() : renderTradesTab()}
         </div>
       </div>
     </div>
