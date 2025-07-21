@@ -21,6 +21,7 @@ const CokeStudiosCatalog = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedItemFilter, setSelectedItemFilter] = useState('all');
+  const [showUnownedItems, setShowUnownedItems] = useState(false);
   
   // New state for tabs and analytics
   const [activeTab, setActiveTab] = useState('catalog');
@@ -263,27 +264,31 @@ const CokeStudiosCatalog = () => {
   };
 
   const filteredItems = catalogData.filter(item => {
+    // Category filter
+    if (!selectedCategories.includes('all') && !selectedCategories.includes(item.catName)) {
+      return false;
+    }
     // Search filter
-    const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.catName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.catDesc?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Category filter (support multiple categories)
-    const matchesCategory = selectedCategories.includes('all') || 
-                           selectedCategories.includes(item.catName);
-    
+    if (searchTerm && !(
+      (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.catName && item.catName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.catDesc && item.catDesc.toLowerCase().includes(searchTerm.toLowerCase()))
+    )) {
+      return false;
+    }
     // Price filter
-    const itemPrice = getItemPrice(item);
-    const matchesPrice = (!priceRange.min || itemPrice >= parseFloat(priceRange.min)) &&
-                        (!priceRange.max || itemPrice <= parseFloat(priceRange.max));
-    
+    const price = getItemPrice(item);
+    if (priceRange.min && price < Number(priceRange.min)) return false;
+    if (priceRange.max && price > Number(priceRange.max)) return false;
     // Date filter
-    const itemDate = getItemPurchaseDate(item);
-    const matchesDate = !itemDate || 
-                       (!dateRange.start || itemDate >= new Date(dateRange.start)) &&
-                       (!dateRange.end || itemDate <= new Date(dateRange.end));
-    
-    return matchesSearch && matchesCategory && matchesPrice && matchesDate;
+    const purchaseDate = getItemPurchaseDate(item);
+    if (dateRange.start && (!purchaseDate || purchaseDate < new Date(dateRange.start))) return false;
+    if (dateRange.end && (!purchaseDate || purchaseDate > new Date(dateRange.end))) return false;
+    // Item filter
+    if (selectedItemFilter !== 'all' && item.prodId !== parseInt(selectedItemFilter)) return false;
+    // Show unowned items filter
+    if (!showUnownedItems && getItemPossessions(item.prodId).length === 0) return false;
+    return true;
   });
 
   // Enhanced sorting
@@ -335,6 +340,7 @@ const CokeStudiosCatalog = () => {
     setSortBy('name');
     setSortOrder('asc');
     setShowFilters(false);
+    setShowUnownedItems(false);
   };
 
   const hasActiveFilters = () => {
@@ -345,7 +351,8 @@ const CokeStudiosCatalog = () => {
            dateRange.start || 
            dateRange.end ||
            sortBy !== 'name' ||
-           sortOrder !== 'asc';
+           sortOrder !== 'asc' ||
+           showUnownedItems;
   };
 
   const filteredPossessionsCount = filteredItems.reduce((count, item) => {
@@ -709,19 +716,15 @@ const CokeStudiosCatalog = () => {
                         <input
                           type="checkbox"
                           checked={selectedCategories.includes(category)}
-                          onChange={(e) => {
+                          onChange={e => {
                             if (e.target.checked) {
                               if (category === 'all') {
                                 setSelectedCategories(['all']);
                               } else {
-                                setSelectedCategories(prev => 
-                                  prev.filter(c => c !== 'all').concat(category)
-                                );
+                                setSelectedCategories(prev => prev.filter(c => c !== 'all').concat(category));
                               }
                             } else {
-                              setSelectedCategories(prev => 
-                                prev.filter(c => c !== category)
-                              );
+                              setSelectedCategories(prev => prev.filter(c => c !== category));
                             }
                           }}
                           className="rounded border-white/30 bg-white/20"
@@ -782,6 +785,19 @@ const CokeStudiosCatalog = () => {
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Show Unowned Items Checkbox - move here above Clear Filters */}
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center gap-2 text-white/90 hover:text-white cursor-pointer mb-4">
+                    <input
+                      type="checkbox"
+                      checked={showUnownedItems}
+                      onChange={e => setShowUnownedItems(e.target.checked)}
+                      className="rounded border-white/30 bg-white/20"
+                    />
+                    <span className="font-coke text-sm">Show unowned items</span>
+                  </label>
                 </div>
 
                 {/* Clear Filters */}
