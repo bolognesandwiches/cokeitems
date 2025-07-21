@@ -139,7 +139,7 @@ const CokeStudiosCatalog = () => {
     try {
       setTradesLoading(true);
       setTradesError(null);
-      const response = await fetch('/api/proxy?endpoint=https://decibel.fun/api/trading');
+      const response = await fetch('/api/proxy?endpoint=/api/trading');
       if (!response.ok) throw new Error('Failed to fetch trades');
       const data = await response.json();
       setTrades(data);
