@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Loader2, Music, Calendar, Package, BarChart3
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { imageBaseMap } from './data/imageBaseMap.js';
 import { mockCatalogData, mockPossessionData } from './data/mockData.js';
+import { useItemValuation } from './hooks/useItemValuation.js';
 
 const CokeStudiosCatalog = () => {
   const [catalogData, setCatalogData] = useState([]);
@@ -41,6 +42,9 @@ const CokeStudiosCatalog = () => {
   const [analyticsCategory, setAnalyticsCategory] = useState('all');
 
   // Header is now always sticky - no scroll detection needed
+
+  // --- FIX: Always call useItemValuation at the top level, before any conditional returns ---
+  const valuations = useItemValuation(catalogData, possessionData, trades);
 
   useEffect(() => {
     fetchData();
@@ -521,6 +525,60 @@ const CokeStudiosCatalog = () => {
     return [...traderItems, ...tradeeItems];
   };
 
+  // --- Custom CC Valuation Logic for Trades ---
+  const getCustomCCValue = (item) => {
+    if (!item) return 0;
+    // Use the same cleaning logic as in catalog
+    const cleanedItemName = (item.name || '').replace(/"/g, '').trim();
+    let value = valuations.get(item.prodId);
+    if (value === undefined || value === null) return 0;
+    if (cleanedItemName === 'Coca-Cola Pinball Machine') {
+      value = value * 30;
+    } else if ([
+      'Gold Record',
+      'Platinum Record',
+      'Cushion',
+      'Robot Dog',
+      'Victorian Chair',
+      'Victorian Table'
+    ].includes(cleanedItemName)) {
+      value = value / 3;
+    } else if ([
+      'Dryer',
+      'Washer',
+      'Gear Table',
+      'Robot Sculpture',
+      'Scrap Metal Carpet',
+      'Tatami Mat',
+      'Tire Chair',
+      'Rice Paper Divider',
+      'Recycling Bin'
+    ].includes(cleanedItemName)) {
+      value = value / 2;
+    }
+    if (cleanedItemName === 'V-Ball Machine') {
+      value = value * 2;
+    }
+    if (cleanedItemName === 'Coca-Cola Neon Sign') {
+      value = 0.7;
+    }
+    if (cleanedItemName === 'Coke Couch') {
+      value = 1;
+    }
+    return value;
+  };
+
+  // Helper to get sum CC value for a list of possession IDs
+  const getTradeCCSum = (possessionIds) => {
+    return (possessionIds || [])
+      .map(pid => getItemDetailsByPossessionId(pid))
+      .filter(item => {
+        const valuation = item ? valuations.get(item.prodId) : undefined;
+        return item && shouldShowCCBadge(item, valuation);
+      })
+      .reduce((sum, item) => sum + getCustomCCValue(item), 0);
+  };
+
   // Helper to get all unique categories from all trade items
   const getUniqueTradeCategories = () => {
     const categories = new Set(['all']);
@@ -587,6 +645,50 @@ const CokeStudiosCatalog = () => {
       tradesSortOrder !== 'desc';
   };
 
+  // --- CC Badge Display Logic (shared for Catalog and Trades) ---
+  const shouldShowCCBadge = (item, valuation) => {
+    if (!item) return false;
+    const cleanedCatName = (item.catName || '').replace(/"/g, '').replace(/\s+/g, '');
+    const cleanedItemName = (item.name || '').replace(/"/g, '').trim();
+    const excludedNec6 = [
+      'Beach View',
+      'City View',
+      'Black Traffic Light',
+      'Curtain',
+      'Retro TV',
+      'Spider Web'
+    ];
+    if (cleanedItemName === 'Coca-Cola Pinball Machine') {
+      return valuation !== undefined && valuation !== null;
+    }
+    if (cleanedItemName === 'Coca-Cola Neon Sign') {
+      return true;
+    }
+    if (cleanedItemName === 'Coke Couch') {
+      return true;
+    }
+    return ([
+      'Necessities6',
+      'Special'
+    ].includes(cleanedCatName)
+      && valuation !== undefined && valuation !== null
+      && !excludedNec6.includes(cleanedItemName));
+  };
+
+  // State for expanded trades
+  const [expandedTradeIds, setExpandedTradeIds] = useState(new Set());
+
+  const toggleTradeExpand = (tradeId) => {
+    setExpandedTradeIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tradeId)) {
+        newSet.delete(tradeId);
+      } else {
+        newSet.add(tradeId);
+      }
+      return newSet;
+    });
+  };
 
   if (loading) {
     return (
@@ -632,7 +734,6 @@ const CokeStudiosCatalog = () => {
       </div>
     );
   }
-
 
 
   const renderCatalogTab = () => (
@@ -841,7 +942,12 @@ const CokeStudiosCatalog = () => {
           const possessions = getItemPossessions(item.prodId);
           const isExpanded = expandedItems.has(item.prodId);
           const imageUrl = getImageUrl(item.imageBase);
-          
+          const valuation = valuations.get(item.prodId);
+
+          // --- Use Shared Helper Functions for Consistency ---
+          const showCCBadge = shouldShowCCBadge(item, valuation);
+          const displayValuation = getCustomCCValue(item);
+
           return (
             <div 
               key={item.prodId} 
@@ -868,7 +974,7 @@ const CokeStudiosCatalog = () => {
                         />
                       )}
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h3 className="text-lg font-bold text-red-700 font-coke transition-colors duration-300 group-hover:text-red-800">
                             {item.name || 'Unnamed Item'}
                           </h3>
@@ -878,6 +984,12 @@ const CokeStudiosCatalog = () => {
                           {possessions.length > 0 && (
                             <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold font-coke transition-all duration-300 group-hover:bg-green-200 group-hover:scale-105">
                               {possessions.length} owned
+                            </span>
+                          )}
+                          {showCCBadge && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold font-coke transition-all duration-300 group-hover:bg-purple-200 group-hover:scale-105">
+                              <TrendingUp className="w-3 h-3" />
+                              {displayValuation.toFixed(2)} CC
                             </span>
                           )}
                         </div>
@@ -1298,8 +1410,66 @@ const CokeStudiosCatalog = () => {
     // Filter out trades with any unknown items
     const validTrades = trades.filter(isTradeValid);
 
+    // --- Merge trades by publicId pair and 5-minute window ---
+    // Helper to get a canonical key for a trade pair (order-independent)
+    const getTradePairKey = (trade) => {
+      const ids = [trade.traderPublicId, trade.tradeePublicId].sort();
+      return ids.join('::');
+    };
+
+    // Sort trades by date ascending
+    const sortedByDate = [...validTrades].sort((a, b) => new Date(a.tradeDate) - new Date(b.tradeDate));
+
+    // Merge logic
+    const mergedTrades = [];
+    let i = 0;
+    while (i < sortedByDate.length) {
+      const baseTrade = sortedByDate[i];
+      const baseKey = getTradePairKey(baseTrade);
+      const baseTime = new Date(baseTrade.tradeDate).getTime();
+      let group = [baseTrade];
+      let j = i + 1;
+      while (j < sortedByDate.length) {
+        const nextTrade = sortedByDate[j];
+        const nextKey = getTradePairKey(nextTrade);
+        const nextTime = new Date(nextTrade.tradeDate).getTime();
+        if (nextKey === baseKey && (nextTime - baseTime) <= 10 * 60 * 1000) {
+          group.push(nextTrade);
+          j++;
+        } else {
+          break;
+        }
+      }
+      // Merge group into one trade
+      if (group.length === 1) {
+        mergedTrades.push(baseTrade);
+      } else {
+        // Robust merge: bucket items by publicId, regardless of direction
+        const itemsByPerson = {
+          [baseTrade.traderPublicId]: [],
+          [baseTrade.tradeePublicId]: [],
+        };
+
+        group.forEach(trade => {
+          itemsByPerson[trade.traderPublicId].push(...(trade.traderItemIds || []));
+          itemsByPerson[trade.tradeePublicId].push(...(trade.tradeeItemIds || []));
+        });
+
+        mergedTrades.push({
+          tradeId: group.map(t => t.tradeId).join(','),
+          tradeDate: group[0].tradeDate,
+          traderItemIds: itemsByPerson[baseTrade.traderPublicId],
+          tradeeItemIds: itemsByPerson[baseTrade.tradeePublicId],
+          traderPublicId: baseTrade.traderPublicId,
+          tradeePublicId: baseTrade.tradeePublicId,
+          mergedCount: group.length
+        });
+      }
+      i += group.length;
+    }
+
     // Apply search/filter
-    const filteredTrades = validTrades.filter(doesTradeMatchFilters);
+    const filteredTrades = mergedTrades.filter(doesTradeMatchFilters);
     // Sort
     const sortedTrades = [...filteredTrades].sort(sortTrades);
 
@@ -1448,56 +1618,211 @@ const CokeStudiosCatalog = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {sortedTrades.map(trade => (
-              <div key={trade.tradeId} className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-coke font-bold text-lg text-red-700">Trade #{trade.tradeId}</span>
-                    <span className="text-gray-500 font-coke text-sm">{new Date(trade.tradeDate).toLocaleString()}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="font-coke text-sm text-gray-600 mb-1">Trader gave:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {trade.traderItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
-                      {trade.traderItemIds.map(pid => {
-                        const item = getItemDetailsByPossessionId(pid);
-                        return item ? (
-                          <div key={pid} className="flex items-center gap-2 bg-white/40 rounded-lg px-3 py-1 shadow border border-white/30">
-                            {item.imageBase && (
-                              <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-8 h-8 object-contain" />
-                            )}
-                            <span className="font-coke text-sm">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
-                          </div>
-                        ) : (
-                          <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
-                        );
-                      })}
+            {sortedTrades.map(trade => {
+              // Always define these at the top of the callback
+              const traderTotal = getTradeCCSum(trade.traderItemIds);
+              const tradeeTotal = getTradeCCSum(trade.tradeeItemIds);
+              const traderBadgeColor = 'bg-purple-100 text-purple-700';
+              const tradeeBadgeColor = 'bg-purple-100 text-purple-700';
+              const isMerged = trade.mergedCount && trade.mergedCount > 1;
+              const isExpanded = expandedTradeIds.has(trade.tradeId);
+              // For merged trades, get the group of individual trades
+              let subTrades = [];
+              if (isMerged) {
+                // Find all trades in the group by tradeId
+                const tradeIds = trade.tradeId.split(',').map(id => id.trim());
+                subTrades = validTrades.filter(t => tradeIds.includes(String(t.tradeId)));
+              }
+              return (
+                <div
+                  key={trade.tradeId}
+                  className={`bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105 ${isMerged ? 'cursor-pointer' : ''}`}
+                  onClick={isMerged ? () => toggleTradeExpand(trade.tradeId) : undefined}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-coke font-bold text-lg text-red-700 flex items-center">
+                        {isMerged && (
+                          <span className="mr-2">
+                            {isExpanded ? <ChevronDown className="inline w-5 h-5 text-red-700" /> : <ChevronRight className="inline w-5 h-5 text-red-700" />}
+                          </span>
+                        )}
+                        Trade #{isMerged ? trade.tradeId.split(',')[0] + ` (+${trade.mergedCount - 1})` : trade.tradeId}
+                      </span>
+                      <span className="text-gray-500 font-coke text-sm">{new Date(trade.tradeDate).toLocaleString()}</span>
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <div className="font-coke text-sm text-gray-600 mb-1">Tradee gave:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {trade.tradeeItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
-                      {trade.tradeeItemIds.map(pid => {
-                        const item = getItemDetailsByPossessionId(pid);
-                        return item ? (
-                          <div key={pid} className="flex items-center gap-2 bg-white/40 rounded-lg px-3 py-1 shadow border border-white/30">
-                            {item.imageBase && (
-                              <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-8 h-8 object-contain" />
-                            )}
-                            <span className="font-coke text-sm">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
-                          </div>
-                        ) : (
-                          <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
-                        );
-                      })}
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex-1">
+                      <div className="font-coke text-sm text-gray-600 mb-1 flex items-center justify-between">
+                        <span>Trader gave:</span>
+                        <span className={`font-coke text-base font-bold rounded-full px-3 py-1 ml-2 flex items-center gap-2 shadow-lg ${traderBadgeColor}`}>
+                          <TrendingUp className="w-3 h-3" />
+                          {traderTotal.toFixed(2)} CC
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {trade.traderItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
+                        {trade.traderItemIds.map(pid => {
+                          const item = getItemDetailsByPossessionId(pid);
+                          const valuation = item ? valuations.get(item.prodId) : undefined;
+                          const showBadge = item && shouldShowCCBadge(item, valuation);
+                          console.log('[TradeTab Badge Debug]', {
+                            pid,
+                            item,
+                            prodId: item && item.prodId,
+                            name: item && item.name,
+                            catName: item && item.catName,
+                            showBadge
+                          });
+                          return item ? (
+                            <div key={`${trade.tradeId}-${pid}`} className="flex items-center gap-2 bg-white/40 rounded-lg px-3 py-1 shadow border border-white/30">
+                              {item.imageBase && (
+                                <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-8 h-8 object-contain" />
+                              )}
+                              <span className="font-coke text-sm">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
+                              {showBadge && (
+                                <span className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold font-coke">
+                                  <TrendingUp className="w-3 h-3" />
+                                  {(() => {
+                                    let displayValuation = getCustomCCValue(item);
+                                    return displayValuation.toFixed(2);
+                                  })()} CC
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-coke text-sm text-gray-600 mb-1 flex items-center justify-between">
+                        <span>Tradee gave:</span>
+                        <span className={`font-coke text-base font-bold rounded-full px-3 py-1 ml-2 flex items-center gap-2 shadow-lg ${tradeeBadgeColor}`}>
+                          <TrendingUp className="w-3 h-3" />
+                          {tradeeTotal.toFixed(2)} CC
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {trade.tradeeItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
+                        {trade.tradeeItemIds.map(pid => {
+                          const item = getItemDetailsByPossessionId(pid);
+                          const valuation = item ? valuations.get(item.prodId) : undefined;
+                          const showBadge = item && shouldShowCCBadge(item, valuation);
+                          console.log('[TradeTab Badge Debug]', {
+                            pid,
+                            item,
+                            prodId: item && item.prodId,
+                            name: item && item.name,
+                            catName: item && item.catName,
+                            showBadge
+                          });
+                          return item ? (
+                            <div key={`${trade.tradeId}-${pid}`} className="flex items-center gap-2 bg-white/40 rounded-lg px-3 py-1 shadow border border-white/30">
+                              {item.imageBase && (
+                                <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-8 h-8 object-contain" />
+                              )}
+                              <span className="font-coke text-sm">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
+                              {showBadge && (
+                                <span className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold font-coke">
+                                  <TrendingUp className="w-3 h-3" />
+                                  {(() => {
+                                    let displayValuation = getCustomCCValue(item);
+                                    return displayValuation.toFixed(2);
+                                  })()} CC
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
+                  {/* Expanded breakdown for merged trades */}
+                  {isMerged && isExpanded && (
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <div className="font-coke text-xs text-gray-500 mb-2">Breakdown of {trade.mergedCount} grouped trades:</div>
+                      <div className="space-y-4">
+                        {subTrades.map(sub => (
+                          <div key={sub.tradeId} className="bg-white/80 rounded-xl p-3 border border-gray-200">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-coke font-bold text-red-700">Trade #{sub.tradeId}</span>
+                              <span className="text-gray-500 font-coke text-xs">{new Date(sub.tradeDate).toLocaleString()}</span>
+                            </div>
+                            <div className="flex flex-col md:flex-row gap-4">
+                              <div className="flex-1">
+                                <div className="font-coke text-xs text-gray-600 mb-1">Trader gave:</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {sub.traderItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
+                                  {sub.traderItemIds.map(pid => {
+                                    const item = getItemDetailsByPossessionId(pid);
+                                    const valuation = item ? valuations.get(item.prodId) : undefined;
+                                    const showBadge = item && shouldShowCCBadge(item, valuation);
+                                    return item ? (
+                                      <div key={`${sub.tradeId}-${pid}`} className="flex items-center gap-2 bg-white/60 rounded-lg px-2 py-1 border border-white/30">
+                                        {item.imageBase && (
+                                          <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-6 h-6 object-contain" />
+                                        )}
+                                        <span className="font-coke text-xs">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
+                                        {showBadge && (
+                                          <span className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold font-coke">
+                                            <TrendingUp className="w-3 h-3" />
+                                            {(() => {
+                                              let displayValuation = getCustomCCValue(item);
+                                              return displayValuation.toFixed(2);
+                                            })()} CC
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <div className="font-coke text-xs text-gray-600 mb-1">Tradee gave:</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {sub.tradeeItemIds.length === 0 && <span className="text-gray-400 font-coke">Nothing</span>}
+                                  {sub.tradeeItemIds.map(pid => {
+                                    const item = getItemDetailsByPossessionId(pid);
+                                    const valuation = item ? valuations.get(item.prodId) : undefined;
+                                    const showBadge = item && shouldShowCCBadge(item, valuation);
+                                    return item ? (
+                                      <div key={`${sub.tradeId}-${pid}`} className="flex items-center gap-2 bg-white/60 rounded-lg px-2 py-1 border border-white/30">
+                                        {item.imageBase && (
+                                          <img src={getImageUrl(item.imageBase)} alt={item.name} className="w-6 h-6 object-contain" />
+                                        )}
+                                        <span className="font-coke text-xs">{item.name?.replace(/"/g, '') || 'Unknown'}</span>
+                                        {showBadge && (
+                                          <span className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold font-coke">
+                                            <TrendingUp className="w-3 h-3" />
+                                            {(() => {
+                                              let displayValuation = getCustomCCValue(item);
+                                              return displayValuation.toFixed(2);
+                                            })()} CC
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span key={pid} className="text-gray-400 font-coke">Unknown Item</span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
