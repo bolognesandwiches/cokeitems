@@ -1,11 +1,34 @@
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { Filter, Package, Tag, TrendingUp, BarChart3 } from 'lucide-react';
+import { Filter, Package, Tag, TrendingUp, BarChart3, ArrowLeftRight, Users, Activity, ChevronDown, ChevronRight } from 'lucide-react';
+import { getImageUrl, shouldShowCCBadge, getCustomCCValue } from '../../utils/helpers';
 
-const AnalyticsTab = ({ catalogData, possessionData }) => {
+const AnalyticsTab = ({ 
+  catalogData, 
+  possessionData, 
+  trades, 
+  tradesLoading, 
+  tradesError, 
+  valuations, 
+  getItemDetailsByPossessionId, 
+  isTradeValid 
+}) => {
   const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
   const [analyticsCategory, setAnalyticsCategory] = useState('all');
   const [selectedItemFilter, setSelectedItemFilter] = useState('all');
+  const [expandedCards, setExpandedCards] = useState({
+    purchaseMetrics: true,
+    tradeMetrics: true,
+    purchaseCharts: false,
+    tradeCharts: false
+  });
+
+  const toggleCard = (cardId) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [cardId]: !prev[cardId]
+    }));
+  };
 
   const getUniqueCategories = () => {
     const categories = new Set(['all']);
@@ -150,6 +173,171 @@ const AnalyticsTab = ({ catalogData, possessionData }) => {
     }, 0);
   };
 
+  // Trading Analytics Functions
+  const getTradeAnalyticsData = () => {
+    if (!trades || !trades.length || tradesLoading || tradesError) return null;
+    
+    const validTrades = trades.filter(isTradeValid);
+    let filteredTrades = [...validTrades];
+    
+    if (analyticsDateRange !== 'all') {
+      const now = new Date();
+      const cutoffDate = new Date();
+      
+      switch (analyticsDateRange) {
+        case '7d':
+          cutoffDate.setDate(now.getDate() - 7);
+          break;
+        case '30d':
+          cutoffDate.setDate(now.getDate() - 30);
+          break;
+        case '90d':
+          cutoffDate.setDate(now.getDate() - 90);
+          break;
+        case '1y':
+          cutoffDate.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+      
+      filteredTrades = validTrades.filter(trade => 
+        new Date(trade.tradeDate) >= cutoffDate
+      );
+    }
+
+    // Apply category and item filters to trades
+    if (analyticsCategory !== 'all' || selectedItemFilter !== 'all') {
+      filteredTrades = filteredTrades.filter(trade => {
+        const tradeItems = [...(trade.traderItemIds || []), ...(trade.tradeeItemIds || [])];
+        const items = tradeItems.map(id => getItemDetailsByPossessionId(id)).filter(Boolean);
+        
+        let matchesCategory = analyticsCategory === 'all';
+        let matchesItem = selectedItemFilter === 'all';
+        
+        items.forEach(item => {
+          // Check category match
+          if (analyticsCategory !== 'all' && item.catName === analyticsCategory) {
+            matchesCategory = true;
+          }
+          
+          // Check specific item match
+          if (selectedItemFilter !== 'all' && item.prodId === parseInt(selectedItemFilter)) {
+            matchesItem = true;
+          }
+        });
+        
+        return matchesCategory && matchesItem;
+      });
+    }
+
+    return filteredTrades;
+  };
+
+  const getTradesOverTime = () => {
+    const tradeData = getTradeAnalyticsData();
+    if (!tradeData || !valuations) return [];
+
+    const tradesByDate = {};
+    const valuesByDate = {};
+
+    tradeData.forEach(trade => {
+      const date = new Date(trade.tradeDate).toLocaleDateString();
+      tradesByDate[date] = (tradesByDate[date] || 0) + 1;
+      
+      // Calculate total CC value for this trade
+      const traderCC = (trade.traderItemIds || [])
+        .map(id => getItemDetailsByPossessionId(id))
+        .filter(item => {
+          const valuation = item ? valuations.get(item.prodId) : undefined;
+          return item && shouldShowCCBadge(item, valuation);
+        })
+        .reduce((sum, item) => sum + getCustomCCValue(item, valuations), 0);
+      
+      const tradeeCC = (trade.tradeeItemIds || [])
+        .map(id => getItemDetailsByPossessionId(id))
+        .filter(item => {
+          const valuation = item ? valuations.get(item.prodId) : undefined;
+          return item && shouldShowCCBadge(item, valuation);
+        })
+        .reduce((sum, item) => sum + getCustomCCValue(item, valuations), 0);
+      
+      const totalTradeValue = traderCC + tradeeCC;
+      valuesByDate[date] = (valuesByDate[date] || 0) + totalTradeValue;
+    });
+
+    return Object.entries(tradesByDate)
+      .sort(([a], [b]) => new Date(a) - new Date(b))
+      .map(([date, count]) => ({ 
+        date, 
+        trades: count, 
+        value: valuesByDate[date] || 0 
+      }));
+  };
+
+  const getMostTradedItems = () => {
+    const tradeData = getTradeAnalyticsData();
+    if (!tradeData) return [];
+
+    const itemCount = {};
+    tradeData.forEach(trade => {
+      [...(trade.traderItemIds || []), ...(trade.tradeeItemIds || [])].forEach(itemId => {
+        const item = getItemDetailsByPossessionId(itemId);
+        if (item) {
+          const key = item.prodId;
+          const name = item.name?.replace(/"/g, '') || 'Unknown';
+          if (!itemCount[key]) {
+            itemCount[key] = { name, count: 0, item };
+          }
+          itemCount[key].count++;
+        }
+      });
+    });
+
+    return Object.values(itemCount)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  };
+
+  const getTradingActivity = () => {
+    const tradeData = getTradeAnalyticsData();
+    if (!tradeData || !valuations) return { totalTrades: 0, totalItems: 0, totalValue: 0, uniqueTraders: 0 };
+
+    const traderSet = new Set();
+    let totalItems = 0;
+    let totalValue = 0;
+
+    tradeData.forEach(trade => {
+      traderSet.add(trade.traderPublicId);
+      traderSet.add(trade.tradeePublicId);
+      totalItems += (trade.traderItemIds || []).length + (trade.tradeeItemIds || []).length;
+      
+      // Calculate trade value
+      const traderCC = (trade.traderItemIds || [])
+        .map(id => getItemDetailsByPossessionId(id))
+        .filter(item => {
+          const valuation = item ? valuations.get(item.prodId) : undefined;
+          return item && shouldShowCCBadge(item, valuation);
+        })
+        .reduce((sum, item) => sum + getCustomCCValue(item, valuations), 0);
+      
+      const tradeeCC = (trade.tradeeItemIds || [])
+        .map(id => getItemDetailsByPossessionId(id))
+        .filter(item => {
+          const valuation = item ? valuations.get(item.prodId) : undefined;
+          return item && shouldShowCCBadge(item, valuation);
+        })
+        .reduce((sum, item) => sum + getCustomCCValue(item, valuations), 0);
+      
+      totalValue += traderCC + tradeeCC;
+    });
+
+    return {
+      totalTrades: tradeData.length,
+      totalItems,
+      totalValue,
+      uniqueTraders: traderSet.size
+    };
+  };
+
   const purchaseData = getPurchasesOverTime();
   const spendingData = getSpendingOverTime();
   const distributionData = getItemDistribution();
@@ -164,6 +352,17 @@ const AnalyticsTab = ({ catalogData, possessionData }) => {
       spending: spending ? spending.spending : 0
     };
   });
+
+  // Trading data processing
+  const tradesTimeData = getTradesOverTime();
+  const mostTradedItems = getMostTradedItems();
+  const tradingActivity = getTradingActivity();
+
+  const combinedTradeTimeData = tradesTimeData.map(trade => ({
+    date: trade.date,
+    trades: trade.trades,
+    value: trade.value
+  }));
 
   const gradientColors = [
     { start: '#FF6B6B', end: '#EE5A52' },
@@ -186,7 +385,7 @@ const AnalyticsTab = ({ catalogData, possessionData }) => {
           <select
             value={analyticsDateRange}
             onChange={(e) => setAnalyticsDateRange(e.target.value)}
-            className="w-full md:w-60 pl-10 pr-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-sm text-white focus:outline-none focus:border-white/60 font-coke shadow-lg transition-all duration-200 hover:bg-white/25"
+            className="w-full md:w-48 pl-10 pr-4 py-3 rounded-xl border-2 border-white/30 bg-white/20 backdrop-blur-sm text-white focus:outline-none focus:border-white/60 font-coke shadow-lg transition-all duration-200 hover:bg-white/25"
           >
             <option value="all" className="bg-red-700 text-white">All Time</option>
             <option value="7d" className="bg-red-700 text-white">Last 7 days</option>
@@ -231,200 +430,257 @@ const AnalyticsTab = ({ catalogData, possessionData }) => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 font-coke mb-2">Total Purchases</p>
-              <p className="text-4xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent font-coke">
-                {analyticsData?.length || 0}
-              </p>
+      {/* Purchase Analytics Card */}
+      <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+        <div 
+          className="flex items-center justify-between p-6 cursor-pointer hover:bg-white/50 transition-all duration-200"
+          onClick={() => toggleCard('purchaseMetrics')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-blue-100 to-blue-200 p-3 rounded-xl">
+              <Package className="w-6 h-6 text-blue-700" />
             </div>
-            <div className="bg-gradient-to-br from-red-100 to-red-200 p-4 rounded-2xl">
-              <Package className="w-8 h-8 text-red-700" />
+            <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent font-coke">
+              Purchase Analytics
+            </h3>
+          </div>
+          {expandedCards.purchaseMetrics ? <ChevronDown className="w-6 h-6 text-gray-600" /> : <ChevronRight className="w-6 h-6 text-gray-600" />}
+        </div>
+        
+        {expandedCards.purchaseMetrics && (
+          <div className="px-6 pb-6 space-y-4">
+            {/* Purchase Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 font-coke mb-1">Total Purchases</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent font-coke">
+                      {analyticsData?.length || 0}
+                    </p>
+                  </div>
+                  <Package className="w-6 h-6 text-red-700" />
+                </div>
+              </div>
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 font-coke mb-1">Total Spent</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent font-coke">
+                      {totalSpent.toFixed(2)} <span className="text-sm">dB</span>
+                    </p>
+                  </div>
+                  <TrendingUp className="w-6 h-6 text-green-700" />
+                </div>
+              </div>
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 font-coke mb-1">
+                      {analyticsCategory !== 'all' ? 'Unique Items' : 'Categories'}
+                    </p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent font-coke">
+                      {distributionData.length}
+                    </p>
+                  </div>
+                  <BarChart3 className="w-6 h-6 text-blue-700" />
+                </div>
+              </div>
+            </div>
+
+            {/* Purchase Charts */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {/* Purchases Over Time */}
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30 xl:col-span-2">
+                <h4 className="font-coke font-bold text-lg text-gray-800 mb-4">Purchases & Spending Over Time</h4>
+                {combinedTimeData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={combinedTimeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="purchases" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="spending" orientation="right" tick={{ fontSize: 10 }} />
+                      <Tooltip />
+                      <Line yAxisId="purchases" type="monotone" dataKey="purchases" stroke="#8B5CF6" strokeWidth={2} />
+                      <Line yAxisId="spending" type="monotone" dataKey="spending" stroke="#10B981" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="font-coke">No purchase data available</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Purchase Distribution */}
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <h4 className="font-coke font-bold text-lg text-gray-800 mb-4">
+                  {analyticsCategory !== 'all' ? 'Item Distribution' : 'Category Distribution'}
+                </h4>
+                {distributionData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <defs>
+                        {gradientColors.map((color, index) => (
+                          <linearGradient key={index} id={`gradient${index}`} x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor={color.start} />
+                            <stop offset="100%" stopColor={color.end} />
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <Pie
+                        data={distributionData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        innerRadius={30}
+                        dataKey="value"
+                        stroke="rgba(255,255,255,0.8)"
+                        strokeWidth={2}
+                      >
+                        {distributionData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={`url(#gradient${index % gradientColors.length})`}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="font-coke">No distribution data available</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 font-coke mb-2">Total Spent</p>
-              <p className="text-4xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent font-coke">
-                {totalSpent}
-                <span className="text-lg ml-1">dB</span>
-              </p>
-            </div>
-            <div className="bg-gradient-to-br from-green-100 to-green-200 p-4 rounded-2xl">
-              <TrendingUp className="w-8 h-8 text-green-700" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 hover:scale-105">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 font-coke mb-2">
-                {analyticsCategory !== 'all' ? 'Unique Items' : 'Categories'}
-              </p>
-              <p className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent font-coke">
-                {distributionData.length}
-              </p>
-            </div>
-            <div className="bg-gradient-to-br from-blue-100 to-blue-200 p-4 rounded-2xl">
-              <BarChart3 className="w-8 h-8 text-blue-700" />
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 xl:col-span-2">
-          <div className="flex items-center gap-2 mb-4">
+      {/* Trading Analytics Card */}
+      <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+        <div 
+          className="flex items-center justify-between p-6 cursor-pointer hover:bg-white/50 transition-all duration-200"
+          onClick={() => toggleCard('tradeMetrics')}
+        >
+          <div className="flex items-center gap-3">
             <div className="bg-gradient-to-br from-purple-100 to-purple-200 p-3 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-purple-700" />
+              <ArrowLeftRight className="w-6 h-6 text-purple-700" />
             </div>
             <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent font-coke">
-              Purchases & Spending Over Time
+              Trading Analytics
             </h3>
           </div>
-          {combinedTimeData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={combinedTimeData} margin={{ top: 20, right: 80, left: 20, bottom: 60 }}>
-                <defs>
-                  <linearGradient id="purchaseGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.1}/>
-                  </linearGradient>
-                  <linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 11, fill: '#6B7280' }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  stroke="#9CA3AF"
-                />
-                <YAxis 
-                  yAxisId="purchases"
-                  tick={{ fontSize: 11, fill: '#8B5CF6' }} 
-                  stroke="#8B5CF6"
-                  label={{ value: 'Purchases', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#8B5CF6' } }}
-                />
-                <YAxis 
-                  yAxisId="spending"
-                  orientation="right"
-                  tick={{ fontSize: 11, fill: '#10B981' }} 
-                  stroke="#10B981"
-                  label={{ value: 'Spending (dB)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#10B981' } }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                    border: 'none', 
-                    borderRadius: '12px',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-                    backdropFilter: 'blur(10px)'
-                  }}
-                  formatter={(value, name) => [
-                    name === 'purchases' ? `${value} items` : `${value} dB`, 
-                    name === 'purchases' ? 'Purchases' : 'Spending'
-                  ]}
-                />
-                <Line 
-                  yAxisId="purchases"
-                  type="monotone" 
-                  dataKey="purchases" 
-                  stroke="#8B5CF6" 
-                  strokeWidth={3}
-                  fill="url(#purchaseGradient)"
-                  dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 5 }}
-                  activeDot={{ r: 7, fill: '#7C3AED', strokeWidth: 3, stroke: '#FFFFFF' }}
-                />
-                <Line 
-                  yAxisId="spending"
-                  type="monotone" 
-                  dataKey="spending" 
-                  stroke="#10B981" 
-                  strokeWidth={3}
-                  fill="url(#spendingGradient)"
-                  dot={{ fill: '#10B981', strokeWidth: 2, r: 5 }}
-                  activeDot={{ r: 7, fill: '#059669', strokeWidth: 3, stroke: '#FFFFFF' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="text-center py-16 text-gray-500">
-              <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-6 rounded-2xl inline-block mb-4">
-                <TrendingUp className="w-16 h-16 text-gray-400" />
-              </div>
-              <p className="font-coke text-lg">No purchase data available</p>
-            </div>
-          )}
+          {expandedCards.tradeMetrics ? <ChevronDown className="w-6 h-6 text-gray-600" /> : <ChevronRight className="w-6 h-6 text-gray-600" />}
         </div>
+        
+        {expandedCards.tradeMetrics && (
+          <div className="px-6 pb-6 space-y-4">
+            {/* Trading Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 font-coke mb-1">Total Trades</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent font-coke">
+                      {tradingActivity.totalTrades}
+                    </p>
+                  </div>
+                  <ArrowLeftRight className="w-6 h-6 text-red-700" />
+                </div>
+              </div>
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 font-coke mb-1">Total Value</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent font-coke">
+                      {tradingActivity.totalValue.toFixed(2)} <span className="text-sm">CC</span>
+                    </p>
+                  </div>
+                  <TrendingUp className="w-6 h-6 text-green-700" />
+                </div>
+              </div>
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 font-coke mb-1">Items Traded</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent font-coke">
+                      {tradingActivity.totalItems}
+                    </p>
+                  </div>
+                  <Package className="w-6 h-6 text-blue-700" />
+                </div>
+              </div>
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 font-coke mb-1">Unique Traders</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent font-coke">
+                      {tradingActivity.uniqueTraders}
+                    </p>
+                  </div>
+                  <Users className="w-6 h-6 text-purple-700" />
+                </div>
+              </div>
+            </div>
 
-        <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20 hover:shadow-3xl transition-all duration-300 xl:col-span-2">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="bg-gradient-to-br from-orange-100 to-orange-200 p-3 rounded-xl">
-              <BarChart3 className="w-6 h-6 text-orange-700" />
-            </div>
-            <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent font-coke">
-              {analyticsCategory !== 'all' ? 'Item Distribution' : 'Category Distribution'}
-            </h3>
-          </div>
-          {distributionData.length > 0 ? (
-            <div className="flex justify-center">
-              <ResponsiveContainer width="100%" height={450}>
-                <PieChart>
-                  <defs>
-                    {gradientColors.map((color, index) => (
-                      <linearGradient key={index} id={`gradient${index}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor={color.start} />
-                        <stop offset="100%" stopColor={color.end} />
-                      </linearGradient>
-                    ))}
-                  </defs>
-                  <Pie
-                    data={distributionData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={150}
-                    innerRadius={60}
-                    dataKey="value"
-                    stroke="rgba(255,255,255,0.8)"
-                    strokeWidth={2}
-                  >
-                    {distributionData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={`url(#gradient${index % gradientColors.length})`}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                      border: 'none', 
-                      borderRadius: '12px',
-                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-                      backdropFilter: 'blur(10px)'
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="text-center py-16 text-gray-500">
-              <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-6 rounded-2xl inline-block mb-4">
-                <BarChart3 className="w-16 h-16 text-gray-400" />
+            {/* Trading Charts */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {/* Trades Over Time */}
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30 xl:col-span-2">
+                <h4 className="font-coke font-bold text-lg text-gray-800 mb-4">Trades & Value Over Time</h4>
+                {combinedTradeTimeData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={combinedTradeTimeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="trades" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="value" orientation="right" tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(value, name) => [
+                        name === 'trades' ? `${value} trades` : `${value.toFixed(2)} CC`, 
+                        name === 'trades' ? 'Trades' : 'Trade Value'
+                      ]} />
+                      <Line yAxisId="trades" type="monotone" dataKey="trades" stroke="#8B5CF6" strokeWidth={2} />
+                      <Line yAxisId="value" type="monotone" dataKey="value" stroke="#10B981" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="font-coke">No trade data available</p>
+                  </div>
+                )}
               </div>
-              <p className="font-coke text-lg">No distribution data available</p>
+
+              {/* Most Traded Items */}
+              <div className="bg-white/50 backdrop-blur-lg rounded-xl p-4 border border-white/30">
+                <h4 className="font-coke font-bold text-lg text-gray-800 mb-4">Most Traded Items</h4>
+                {mostTradedItems.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={mostTradedItems} margin={{ top: 10, right: 15, left: 0, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fontSize: 8 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis tick={{ fontSize: 9 }} />
+                      <Tooltip formatter={(value) => [`${value} times`, 'Traded']} />
+                      <Bar dataKey="count" fill="#3B82F6" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="font-coke">No trading data available</p>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

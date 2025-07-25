@@ -60,6 +60,12 @@ const CokeStudiosCatalog = () => {
           <AnalyticsTab
             catalogData={catalogData}
             possessionData={possessionData}
+            trades={trades}
+            tradesLoading={tradesLoading}
+            tradesError={tradesError}
+            valuations={valuations}
+            getItemDetailsByPossessionId={getItemDetailsByPossessionId}
+            isTradeValid={isTradeValid}
           />
         );
       case 'trades':
