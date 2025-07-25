@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCokeData } from './hooks/useCokeData';
-import Header from './components/common/Header';
-import LoadingScreen from './components/common/LoadingScreen';
+import UnifiedHeader from './components/common/UnifiedHeader';
 import ErrorDisplay from './components/common/ErrorDisplay';
 import CatalogTab from './components/catalog/CatalogTab';
 import AnalyticsTab from './components/analytics/AnalyticsTab';
@@ -9,6 +8,7 @@ import TradesTab from './components/trades/TradesTab';
 
 const CokeStudiosCatalog = () => {
   const [activeTab, setActiveTab] = useState('trades');
+  const [appReady, setAppReady] = useState(false);
   const {
     catalogData,
     possessionData,
@@ -26,9 +26,17 @@ const CokeStudiosCatalog = () => {
     isTradeValid
   } = useCokeData();
 
-  if (loading) {
-    return <LoadingScreen />;
-  }
+  // Handle the transition from splash to app
+  useEffect(() => {
+    if (!loading && !error) {
+      // Start a timer to allow users to see the splash screen
+      const splashTimer = setTimeout(() => {
+        setAppReady(true);
+      }, 2000); // 2.0 second delay for aesthetic purposes
+      
+      return () => clearTimeout(splashTimer);
+    }
+  }, [loading, error]);
 
   if (error) {
     return <ErrorDisplay error={error} onRetry={fetchData} />;
@@ -73,13 +81,24 @@ const CokeStudiosCatalog = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-800">
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
-      <div className="container mx-auto px-4 py-4">
-        <div className="fade-in">
-          {renderTabContent()}
+    <div className="min-h-screen" style={{backgroundColor: '#b91c1c'}}>
+      {/* The unified header that morphs from splash to header */}
+      <UnifiedHeader 
+        isTransitioning={appReady}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+      
+      {/* Main content - only shows after app is ready */}
+      {appReady && (
+        <div className="main-content">
+          <div className="container mx-auto px-4 py-4">
+            <div className="fade-in">
+              {renderTabContent()}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

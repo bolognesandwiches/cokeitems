@@ -44,6 +44,28 @@
   .btn-animate {
     @apply transform transition-all duration-300 ease-out;
   }
+
+  .main-content {
+    padding-top: 80px; /* Adjust this value to match the final height of your header */
+    animation: mainContentFadeIn 1.5s ease-out 1.2s forwards;
+    opacity: 0;
+  }
+  
+  .header-tabs {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 40;
+    opacity: 0;
+    animation: fadeInTabs 1.5s ease-out 1.2s forwards;
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .loading-splash-minimize .header-tabs {
+    animation: tabsToHeader 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.2s forwards;
+  }
   
   .btn-animate:hover {
     @apply scale-105 shadow-xl;
@@ -207,6 +229,442 @@
     @apply focus:outline-none focus:ring-4 focus:ring-red-500/50 focus:ring-offset-2 focus:ring-offset-white;
   }
 
+  /* ===== UNIFIED HEADER SYSTEM ===== */
+  
+  /* Base unified header container */
+  .unified-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    transition: all 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  /* Splash state - full screen */
+  .unified-header-splash {
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* Header state - compact header */
+  .unified-header-minimized {
+    height: 80px;
+    width: 100%;
+  }
+
+  /* ===== BACKGROUND ELEMENTS ===== */
+  
+  /* Splash backgrounds */
+  .splash-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .unified-header-splash .splash-background {
+    transform: translateY(0);
+  }
+
+  .unified-header-minimized .splash-background {
+    transform: translateY(-100vh);
+    pointer-events: none;
+  }
+
+  .splash-top-section {
+    height: 50%;
+    background: white;
+    position: relative;
+  }
+
+  .splash-bottom-section {
+    height: 50%;
+    background: #b91c1c;
+  }
+
+  .splash-wave-effect {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    transform: rotate(180deg);
+    height: 65px;
+    background-size: 500px 100%;
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15 L500,0 L0,0 Z' stroke-width='0' fill='%23b91c1c'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15' stroke='%23b91c1c' stroke-width='4' fill='none'/%3e%3c/svg%3e");
+    animation: wave-animation 5s linear infinite;
+    opacity: 0.9;
+  }
+
+  /* Header background */
+  .header-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: white;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(16px);
+    transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.2s;
+  }
+
+  .header-background::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    transform: rotate(180deg);
+    height: 80px;
+    background-size: 500px 100%;
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15 L500,0 L0,0 Z' stroke-width='0' fill='%23dc2626'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15' stroke='%23dc2626' stroke-width='4' fill='none'/%3e%3c/svg%3e");
+    animation: wave-animation 5s linear infinite;
+    pointer-events: none;
+  }
+
+  .unified-header-splash .header-background {
+    transform: translateY(-80px);
+    pointer-events: none;
+  }
+
+  .unified-header-minimized .header-background {
+    transform: translateY(0);
+  }
+
+  /* ===== MORPHING ELEMENTS ===== */
+  
+  /* Splash branding container - centers logo only */
+  .splash-branding-container {
+    position: absolute;
+    top: 35%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    z-index: 50;
+  }
+
+  .unified-header-splash .splash-branding-container {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .unified-header-minimized .splash-branding-container {
+    opacity: 0;
+    transform: translate(-50%, -100%) scale(0.1);
+    transition: opacity 0.1s ease-out, transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .splash-logo-wrapper {
+    flex-shrink: 0;
+  }
+
+  /* Hide splash title */
+  .splash-title-wrapper {
+    display: none;
+  }
+
+  /* Header logo - appears fresh in header */
+  .header-logo {
+    position: absolute;
+    top: 50%;
+    left: 48px;
+    transform: translate(0, -50%);
+    z-index: 51;
+    transition: all 0.4s ease-out;
+  }
+
+  .unified-header-splash .header-logo {
+    opacity: 0;
+    transform: translate(0, -50%) scale(0.8);
+  }
+
+  .unified-header-minimized .header-logo {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+
+  .logo-icon {
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  /* Animate logo during splash screen */
+  .unified-header-splash .logo-icon {
+    animation: logoBreathing 1.5s ease-out forwards;
+  }
+
+  .unified-header-minimized .logo-icon {
+    animation: none;
+  }
+
+  /* New logo image styling for splash logo */
+  .logo-new-image {
+    transition: all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    object-fit: contain;
+  }
+
+  .unified-header-splash .logo-new-image {
+    width: 8rem;
+    height: 8rem;
+  }
+
+  .unified-header-minimized .logo-new-image {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  /* Header logo container for overlapping elements */
+  .header-logo-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    padding: 0;
+  }
+
+  /* Header thumb image - shows initially during header appearance */
+  .header-thumb-image {
+    width: 2rem;
+    height: 2rem;
+    object-fit: contain;
+    transition: opacity 0.5s ease-out;
+    opacity: 1;
+  }
+
+  .header-thumb-image.header-thumb-settled {
+    opacity: 0;
+    transition-delay: 2.0s; /* Longer delay to appreciate the thumb */
+  }
+
+  /* Header new logo - shows after settling */
+  .header-new-logo {
+    width: 3.5rem;
+    height: 3.5rem;
+    object-fit: contain;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.5s ease-out;
+    opacity: 0;
+  }
+
+  .header-new-logo.header-logo-settled {
+    opacity: 1;
+    transition-delay: 2.0s; /* Longer delay to appreciate the thumb */
+  }
+
+
+
+  /* Header title - appears fresh in header */
+  .header-title {
+    position: absolute;
+    top: 50%;
+    left: 96px;
+    transform: translate(0, -50%);
+    z-index: 51;
+    transition: all 0.4s ease-out;
+  }
+
+  .unified-header-splash .header-title {
+    opacity: 0;
+    transform: translate(0, -50%) scale(0.8);
+  }
+
+  .unified-header-minimized .header-title {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+    transition-delay: 2.0s; /* Appear with the logo transition */
+  }
+
+  .title-text {
+    font-family: 'CokeStudios', sans-serif;
+    font-weight: bold;
+    color: #FF1B0F;
+    white-space: nowrap;
+    transition: all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transform: translate(-0.5rem, 0.6rem);
+  }
+
+  .unified-header-splash .title-text {
+    font-size: 3.75rem;
+  }
+
+  .unified-header-minimized .title-text {
+    font-size: 1.25rem;
+  }
+
+  @media (max-width: 640px) {
+    .unified-header-minimized .morphing-title {
+      opacity: 0;
+    }
+  }
+
+  /* Tabs morphing */
+  .morphing-tabs {
+    position: absolute;
+    top: 50%;
+    right: 1.5rem;
+    transform: translate(0, -50%);
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) 1.3s;
+    z-index: 50;
+  }
+
+  .unified-header-splash .morphing-tabs {
+    opacity: 0;
+    transform: translate(0, -50%) scale(0.3);
+    pointer-events: none;
+  }
+
+  .unified-header-minimized .morphing-tabs {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+    pointer-events: auto;
+  }
+
+  .tabs-container {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .tab-button {
+    font-family: 'CokeStudios', sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    border: 2px solid;
+    transition: all 0.3s ease-out;
+    transform: scale(1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    backdrop-filter: blur(8px);
+  }
+
+  .tab-button:hover {
+    transform: scale(1.05);
+  }
+
+  .tab-button:active {
+    transform: scale(0.95);
+  }
+
+  .tab-active {
+    background: #dc2626;
+    color: white;
+    border-color: #b91c1c;
+    box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
+  }
+
+  .tab-inactive {
+    background: rgba(255, 255, 255, 0.8);
+    color: #b91c1c;
+    border-color: rgba(220, 38, 38, 0.3);
+  }
+
+  .tab-inactive:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(220, 38, 38, 0.5);
+  }
+
+  .tab-icon {
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.25rem;
+  }
+
+  /* Loading splash screen components */
+  .loading-splash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    transition: all 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .loading-splash-minimize {
+    animation: splashMinimizeToHeader 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.2s forwards;
+  }
+
+  /* Top white section - 50% of screen */
+  .loading-top-section {
+    height: 50vh;
+    background: white;
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Bottom red gradient section - 50% of screen */
+  .loading-bottom-section {
+    height: 50vh;
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Wave effect between sections */
+  .loading-wave-effect {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: rotate(180deg); /* Flip the wave vertically like header */
+    height: 65px;
+    background-size: 500px 100%;
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15 L500,0 L0,0 Z' stroke-width='0' fill='%23dc2626'/%3e%3cpath d='M0,15 C250,40 250,-10 500,15' stroke='%23dc2626' stroke-width='4' fill='none'/%3e%3c/svg%3e");
+    animation: wave-animation 5s linear infinite;
+    z-index: 15;
+    pointer-events: none;
+  }
+
+
+
+  /* Logo and title styling for loading - side by side positioning */
+  .loading-logo {
+    position: absolute;
+    top: 35%;
+    left: 45%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+  }
+
+  .loading-title {
+    position: absolute;
+    top: 35%;
+    left: 62%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+    white-space: nowrap;
+  }
+
+  /* Animation classes for minimize transition */
+  .loading-splash-minimize .loading-logo {
+    animation: logoToHeader 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.2s forwards;
+  }
+
+  .loading-splash-minimize .loading-title {
+    animation: textToHeader 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.2s forwards;
+  }
+
+  .loading-splash-minimize .loading-wave-effect {
+    animation: waveToHeader 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.2s forwards;
+  }
+
   /* New Coca-Cola Ribbon Wave Effect */
   .coke-wave {
     position: relative;
@@ -246,6 +704,41 @@
       transform: translateY(0);
     }
   }
+
+  /* ... existing keyframes ... */
+
+@keyframes fadeInTabs {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tabsToHeader {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    transform: translate(15vw, -45vh) scale(0.5); /* Adjust these values to align with your header */
+  }
+}
+
+@keyframes logoToHeader {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    transform: translate(-45vw, -45vh) scale(0.25); /* Adjust these values for final logo position */
+  }
+}
+
+@keyframes textToHeader {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    transform: translate(-35vw, -45vh) scale(0.17); /* Adjust these values for final title position */
+  }
+}
 
   @keyframes pulseGlow {
     0%, 100% {
@@ -435,6 +928,100 @@
     }
   }
 
+  /* Loading splash transformation animations */
+  @keyframes splashMinimizeToHeader {
+    0% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-35vh);
+      opacity: 0;
+    }
+  }
+
+  /* Individual element animations for perfect coalescence */
+  @keyframes logoToHeader {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      padding: 1.5rem;
+    }
+    100% {
+      transform: translate(-45vw, -32vh) scale(0.25);
+      padding: 0.5rem;
+    }
+  }
+
+  @keyframes textToHeader {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      font-size: 3.75rem;
+    }
+    100% {
+      transform: translate(-35vw, -32vh) scale(0.17);
+      font-size: 1.25rem;
+    }
+  }
+
+  @keyframes waveToHeader {
+    0% {
+      transform: rotate(180deg) translateY(0);
+      height: 65px;
+    }
+    100% {
+      transform: rotate(180deg) translateY(-50vh);
+      height: 65px;
+    }
+  }
+
+  @keyframes mainContentFadeIn {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Logo vigorous shaking animation for splash screen */
+  @keyframes logoBreathing {
+    0% {
+      transform: scale(1) translateX(0) rotate(0deg);
+    }
+    10% {
+      transform: scale(1.05) translateX(-5px) rotate(-10deg);
+    }
+    20% {
+      transform: scale(1.1) translateX(6px) rotate(15deg);
+    }
+    30% {
+      transform: scale(1.15) translateX(-6px) rotate(-18deg);
+    }
+    40% {
+      transform: scale(1.2) translateX(7px) rotate(20deg);
+    }
+    50% {
+      transform: scale(1.25) translateX(-6px) rotate(-18deg);
+    }
+    60% {
+      transform: scale(1.28) translateX(5px) rotate(15deg);
+    }
+    70% {
+      transform: scale(1.3) translateX(-4px) rotate(-12deg);
+    }
+    80% {
+      transform: scale(1.32) translateX(3px) rotate(8deg);
+    }
+    90% {
+      transform: scale(1.34) translateX(-2px) rotate(-4deg);
+    }
+    100% {
+      transform: scale(1.35) translateX(0) rotate(0deg);
+    }
+  }
+
   /* Animation utilities */
   .animate-slide-in-right {
     animation: slideInFromRight 0.5s ease-out forwards;
@@ -477,6 +1064,10 @@
   .animate-text-slide-in {
     animation: textSlideIn 0.6s ease-out 0.3s forwards;
     opacity: 0; /* Start hidden */
+  }
+
+  .animate-main-content-fade-in {
+    opacity: 1; /* Just show content immediately when coalescence starts */
   }
 
   /* Enhanced shadow utilities */

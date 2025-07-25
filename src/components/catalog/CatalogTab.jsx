@@ -40,10 +40,10 @@ const CatalogTab = ({
     
     // Remove reorder classes after animations complete to restore hover effects
     const timer = setTimeout(() => {
-      document.querySelectorAll('.item-reorder').forEach(element => {
-        element.classList.remove('item-reorder');
+      document.querySelectorAll('.trade-reorder').forEach(element => {
+        element.classList.remove('trade-reorder');
       });
-    }, 1500); // After staggered animations complete
+    }, 1800); // After staggered animations complete (trades timing)
     
     return () => clearTimeout(timer);
   }, [selectedCategories, sortBy, sortOrder, priceRange, dateRange, showUnownedItems]);
@@ -51,10 +51,10 @@ const CatalogTab = ({
   // Also remove reorder classes on initial page load
   useEffect(() => {
     const timer = setTimeout(() => {
-      document.querySelectorAll('.item-reorder').forEach(element => {
-        element.classList.remove('item-reorder');
+      document.querySelectorAll('.trade-reorder').forEach(element => {
+        element.classList.remove('trade-reorder');
       });
-    }, 1500);
+    }, 1800);
     
     return () => clearTimeout(timer);
   }, []); // Run once on mount
@@ -257,8 +257,8 @@ const CatalogTab = ({
             <div 
               key={item.prodId} 
               data-item-id={item.prodId}
-              className={`bg-white/95 backdrop-blur-lg rounded-xl shadow-lg overflow-hidden card-hover border border-white/20 group ${!isSearching && index < 12 ? 'item-reorder' : ''}`}
-              style={{ animationDelay: index < 12 ? `${index * 0.05}s` : '0s' }}
+              className={`bg-white/95 backdrop-blur-lg rounded-xl shadow-lg overflow-hidden card-hover border border-white/20 group ${!isSearching && index < 12 ? 'trade-reorder' : ''}`}
+              style={{ animationDelay: index < 12 ? `${index * 0.06}s` : '0s' }}
             >
               <div 
                 className="p-4 cursor-pointer hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100/50 transition-all duration-300 relative overflow-hidden"
@@ -355,8 +355,8 @@ const CatalogTab = ({
                               {possessions.map((possession, possessionIndex) => (
                                 <tr 
                                   key={possession.id} 
-                                  className={`border-b border-gray-100 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-300 transform hover:scale-[1.01] fade-in ${!isSearching && possessionIndex < 8 ? 'item-reorder' : ''}`}
-                                  style={{ animationDelay: possessionIndex < 8 ? `${possessionIndex * 0.12}s` : '0s' }}
+                                  className={`border-b border-gray-100 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-300 transform hover:scale-[1.01] fade-in ${!isSearching && possessionIndex < 4 ? 'trade-reorder' : ''}`}
+                                  style={{ animationDelay: possessionIndex < 4 ? `${possessionIndex * 0.08}s` : '0s' }}
                                 >
                                   <td className="px-4 py-3 font-coke font-medium text-gray-700">
                                     <span className="bg-gray-100 px-2 py-1 rounded-lg text-xs">
