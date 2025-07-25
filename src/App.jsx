@@ -25,7 +25,7 @@ const CokeStudiosCatalog = () => {
   const [showUnownedItems, setShowUnownedItems] = useState(false);
   
   // New state for tabs and analytics
-  const [activeTab, setActiveTab] = useState('catalog');
+  const [activeTab, setActiveTab] = useState('trades');
 
   // Trades state
   const [trades, setTrades] = useState([]);
