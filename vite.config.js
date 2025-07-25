@@ -24,14 +24,6 @@ export default defineConfig({
           });
         },
       },
-      '/client2': {
-        target: 'https://decibel.fun',
-        changeOrigin: true,
-      },
-      '/api': {
-        target: 'https://decibel.fun',
-        changeOrigin: true,
-      },
     },
   },
 }) 

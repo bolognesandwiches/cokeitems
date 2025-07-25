@@ -1,94 +1,44 @@
 export default async function handler(req, res) {
-  // Set CORS headers
+  // Set CORS headers for all responses
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight requests
+  // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
+    res.status(204).end();
     return;
   }
 
   try {
     const { endpoint } = req.query;
-    
+
     if (!endpoint) {
       return res.status(400).json({ error: 'Endpoint parameter is required' });
     }
 
-    // Check if we're running locally (Vercel sets VERCEL environment variable)
-    const isLocalhost = !process.env.VERCEL;
-    
-    if (isLocalhost) {
-      console.log('Running locally - using mock data for:', endpoint);
-      
-      // Return mock data for local development
-      if (endpoint.includes('Catalogue_English.txt')) {
-        // Mock catalog data
-        const mockCatalog = `ITEM=[ #prodId: "1" #name: "Mock Studio Chair" #catName: "Furniture" #type: "Chair" #catDesc: "A comfortable studio chair" #imageBase: "6_chair_studio_small.png" ]
-ITEM=[ #prodId: "2" #name: "Mock Microphone" #catName: "Audio Equipment" #type: "Microphone" #catDesc: "Professional studio microphone" #imageBase: "13_microphone_small.png" ]
-ITEM=[ #prodId: "3" #name: "Mock Rug" #catName: "Decor" #type: "Rug" #catDesc: "Stylish studio rug" #imageBase: "10_rug1_small.png" ]`;
-        
-        res.status(200).send(mockCatalog);
-        return;
-      }
-      
-      if (endpoint.includes('/api/possession')) {
-        // Mock possession data
-        const mockPossessions = [
-          {
-            id: 1,
-            catalogItemId: 1,
-            datePurchased: "2024-01-15T10:30:00Z",
-            purchasePrice: 150
-          },
-          {
-            id: 2,
-            catalogItemId: 2,
-            datePurchased: "2024-01-20T14:45:00Z",
-            purchasePrice: 300
-          },
-          {
-            id: 3,
-            catalogItemId: 3,
-            datePurchased: "2024-02-01T09:15:00Z",
-            purchasePrice: 75
-          },
-          {
-            id: 4,
-            catalogItemId: 1,
-            datePurchased: "2024-02-10T16:20:00Z",
-            purchasePrice: 150
-          }
-        ];
-        
-        res.status(200).json(mockPossessions);
-        return;
-      }
-    }
-
-    // Construct the full URL
     const baseUrl = 'https://decibel.fun';
-    const url = `${baseUrl}${endpoint}`;
+    const targetUrl = `${baseUrl}${endpoint}`;
 
-    // Make the request to the actual API
-    const response = await fetch(url);
-    
+    const response = await fetch(targetUrl);
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Forward the status from the target server
+      return res.status(response.status).json({
+        error: `API request failed with status ${response.status}`,
+        details: await response.text(),
+      });
     }
 
-    // Get the content type
+    // Pass through the headers from the target response
     const contentType = response.headers.get('content-type');
-    
-    if (contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      res.status(200).json(data);
-    } else {
-      const text = await response.text();
-      res.status(200).send(text);
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
     }
+    
+    // Stream the response body back to the client
+    res.status(200);
+    response.body.pipe(res);
 
   } catch (error) {
     console.error('Proxy error:', error);
