@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, ChevronRight, Loader2, Search, SortAsc, SortDesc, Filter, Package, TrendingUp, X, User, Calendar, Hash } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Search, SortAsc, SortDesc, Filter, Package, TrendingUp, X, User, Calendar, Hash, Info } from 'lucide-react';
+import ValuationModal from '../common/ValuationModal';
 import { getImageUrl, shouldShowCCBadge, getCustomCCValue } from '../../utils/helpers';
 
 const TradesTab = ({
@@ -25,6 +26,9 @@ const TradesTab = ({
   // Trader Focus Modal State
   const [showTraderModal, setShowTraderModal] = useState(false);
   const [selectedTraderUID, setSelectedTraderUID] = useState(null);
+  
+  // Valuation Modal State
+  const [showValuationModal, setShowValuationModal] = useState(false);
 
   const openTraderModal = (traderUID) => {
     console.log('Opening trader modal for:', traderUID);
@@ -37,6 +41,9 @@ const TradesTab = ({
     setShowTraderModal(false);
     setSelectedTraderUID(null);
   };
+
+  const openValuationModal = () => setShowValuationModal(true);
+  const closeValuationModal = () => setShowValuationModal(false);
 
   // Add escape key handler for modal
   useEffect(() => {
@@ -511,6 +518,24 @@ const TradesTab = ({
         </div>
       </div>
 
+      {/* Valuation Disclaimer */}
+      <div className="fade-in fade-in-delay-1">
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
+          <div className="flex items-center gap-3">
+            <Info className="w-5 h-5 text-white/70 flex-shrink-0" />
+            <p className="font-coke text-sm text-white/90">
+              <strong>Note:</strong> Item valuations are estimates only. 
+              <button 
+                onClick={openValuationModal}
+                className="text-white underline hover:text-red-200 transition-colors duration-200 ml-1"
+              >
+                Interested in how values are calculated?
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+
       {tradesLoading ? (
         <div className="min-h-[300px] flex items-center justify-center">
           <Loader2 className="w-10 h-10 animate-spin text-red-600" />
@@ -848,6 +873,16 @@ const TradesTab = ({
         </div>,
         document.body
       )}
+
+      {/* Valuation Modal */}
+      <ValuationModal 
+        showModal={showValuationModal} 
+        closeModal={closeValuationModal}
+        catalogData={catalogData}
+        possessionData={possessionData}
+        trades={trades}
+        valuations={valuations}
+      />
     </div>
   );
 };

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Package, Calendar, Filter, TrendingUp } from 'lucide-react';
+import { ChevronDown, ChevronRight, Package, Calendar, Filter, TrendingUp, Info } from 'lucide-react';
 import FilterControls from '../common/FilterControls';
+import ValuationModal from '../common/ValuationModal';
 import { getImageUrl, shouldShowCCBadge, getCustomCCValue } from '../../utils/helpers';
 
 const CatalogTab = ({
   catalogData,
   possessionData,
+  trades,
   valuations,
   getItemPossessions,
   getItemPrice,
@@ -22,6 +24,10 @@ const CatalogTab = ({
   const [showFilters, setShowFilters] = useState(false);
   const [showUnownedItems, setShowUnownedItems] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [showValuationModal, setShowValuationModal] = useState(false);
+
+  const openValuationModal = () => setShowValuationModal(true);
+  const closeValuationModal = () => setShowValuationModal(false);
 
   // Track when animations should be enabled (not during search typing)
   useEffect(() => {
@@ -243,6 +249,24 @@ const CatalogTab = ({
         </div>
       </div>
 
+      {/* Valuation Disclaimer */}
+      <div className="fade-in fade-in-delay-1">
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
+          <div className="flex items-center gap-3">
+            <Info className="w-5 h-5 text-white/70 flex-shrink-0" />
+            <p className="font-coke text-sm text-white/90">
+              <strong>Note:</strong> Item valuations are estimates only. 
+              <button 
+                onClick={openValuationModal}
+                className="text-white underline hover:text-red-200 transition-colors duration-200 ml-1"
+              >
+                Interested in how values are calculated?
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Enhanced Items List */}
       <div className="space-y-2 fade-in fade-in-delay-2">
         {sortedItems.map((item, index) => {
@@ -422,6 +446,16 @@ const CatalogTab = ({
           </div>
         </div>
       )}
+
+      {/* Valuation Modal */}
+      <ValuationModal 
+        showModal={showValuationModal} 
+        closeModal={closeValuationModal}
+        catalogData={catalogData}
+        possessionData={possessionData}
+        trades={trades}
+        valuations={valuations}
+      />
     </div>
   );
 };

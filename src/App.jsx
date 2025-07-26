@@ -49,6 +49,7 @@ const CokeStudiosCatalog = () => {
           <CatalogTab
             catalogData={catalogData}
             possessionData={possessionData}
+            trades={trades}
             valuations={valuations}
             getItemPossessions={getItemPossessions}
             getItemPrice={getItemPrice}
